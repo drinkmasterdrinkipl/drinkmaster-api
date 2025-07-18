@@ -49,6 +49,7 @@ module.exports = async (req, res) => {
       };
     }
 
+    // POPRAWNE - używamy suggestions z AI!
     const result = {
       data: suggestions
     };
