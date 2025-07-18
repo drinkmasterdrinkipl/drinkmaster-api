@@ -1,0 +1,17 @@
+cat > package.json << 'EOF'
+{
+  "name": "master-api",
+  "version": "1.0.0",
+  "description": "DrinkMaster API endpoints",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "openai": "^4.28.0"
+  },
+  "devDependencies": {
+    "vercel": "^28.0.0"
+  }
+}
+EOF
