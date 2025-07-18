@@ -9,8 +9,8 @@ module.exports = async (req, res) => {
     const { image, language = 'pl' } = req.body;
     
     const prompt = language === 'pl' 
-      ? "Rozpoznaj alkohol na zdjęciu. Podaj: nazwę, markę, typ, kraj pochodzenia, zawartość alkoholu, opis, sugestie serwowania i propozycje koktajli."
-      : "Identify the alcohol in the image. Provide: name, brand, type, country, alcohol content, description, serving suggestions and cocktail suggestions.";
+      ? "Rozpoznaj alkohol na zdjęciu. Zwróć dokładnie w formacie JSON: {name, brand, type, country, alcoholContent, description, servingSuggestions[], cocktailSuggestions[]}"
+      : "Identify the alcohol in the image. Return exactly in JSON format: {name, brand, type, country, alcoholContent, description, servingSuggestions[], cocktailSuggestions[]}";
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -26,16 +26,31 @@ module.exports = async (req, res) => {
       max_tokens: 1000,
     });
 
+    // UŻYWAMY PRAWDZIWEJ ODPOWIEDZI!
+    const aiResponse = response.choices[0].message.content;
+    console.log('AI Response:', aiResponse);
+    
+    // Parsuj JSON z odpowiedzi
+    let parsedData;
+    try {
+      parsedData = JSON.parse(aiResponse);
+    } catch (e) {
+      // Jeśli nie jest JSON, spróbuj wyciągnąć dane
+      parsedData = {
+        name: "Nierozpoznany alkohol",
+        brand: "Nieznana",
+        type: "alcohol",
+        country: "Nieznany",
+        alcoholContent: 40,
+        description: aiResponse,
+        servingSuggestions: ["Z lodem"],
+        cocktailSuggestions: ["Klasyczne"]
+      };
+    }
+
     const result = {
       data: {
-        name: "Jack Daniel's",
-        type: "whiskey",
-        brand: "Jack Daniel's",
-        country: "USA",
-        alcoholContent: 40,
-        description: "Tennessee whiskey filtrowana przez klonowy węgiel drzewny.",
-        servingSuggestions: ["Czysta", "Z lodem", "Z colą"],
-        cocktailSuggestions: ["Whiskey Sour", "Old Fashioned", "Jack & Coke"],
+        ...parsedData,
         confidence: 95
       }
     };
