@@ -65,10 +65,11 @@ module.exports = async (req, res) => {
         }
       ],
       max_tokens: 800,
-      temperature: 0.2 // Lower for faster response
+      temperature: 0.2
     });
 
     const aiResponse = response.choices[0].message.content;
+    console.log('Raw Scanner AI Response:', aiResponse.substring(0, 200) + '...');
     
     // Fast parsing
     let cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
@@ -97,7 +98,9 @@ module.exports = async (req, res) => {
         'gin': ['Gin & Tonic', 'Martini', 'Negroni'],
         'rum': ['Mojito', 'Daiquiri', 'Mai Tai'],
         'tequila': ['Margarita', 'Paloma', 'Tequila Sunrise'],
-        'koniak': ['Sidecar', 'French 75', 'Sazerac']
+        'koniak': ['Sidecar', 'French 75', 'Sazerac'],
+        'wino': language === 'pl' ? ['Sangria', 'Kir', 'Spritz'] : ['Sangria', 'Kir', 'Spritz'],
+        'szampan': ['Mimosa', 'Bellini', 'French 75']
       };
       
       // For Metaxa specifically
@@ -117,14 +120,14 @@ module.exports = async (req, res) => {
         country: language === 'pl' ? "Nieznany" : "Unknown",
         alcoholContent: 40,
         description: language === 'pl' 
-          ? "Nie udało się rozpoznać produktu. Spróbuj zrobić wyraźniejsze zdjęcie etykiety."
-          : "Could not identify the product. Try taking a clearer photo.",
+          ? "Nie udało się rozpoznać produktu. Może to być rzadki lub regionalny alkohol. Spróbuj zrobić wyraźniejsze zdjęcie etykiety przy dobrym oświetleniu."
+          : "Could not identify the product. This might be a rare or regional alcohol. Try taking a clearer photo with better lighting.",
         cocktailSuggestions: language === 'pl'
           ? ["Klasyczne koktajle"]
           : ["Classic cocktails"],
         funFact: language === 'pl'
-          ? "Każdy alkohol ma swoją unikalną historię."
-          : "Every alcohol has its unique history."
+          ? "Każdy alkohol ma swoją unikalną historię i tradycję produkcji."
+          : "Every alcohol has its unique history and production tradition."
       };
     }
 
