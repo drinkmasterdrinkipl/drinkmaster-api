@@ -4,39 +4,34 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const SCANNER_SYSTEM_PROMPT = `You are an expert sommelier and bartender AI. Analyze alcohol bottle images with precision.
+const SCANNER_SYSTEM_PROMPT = `You are a certified sommelier and spirits expert analyzing bottle images.
 
-LANGUAGE: Respond in the language specified in the request (pl/en).
+LANGUAGE: Respond in the requested language (pl/en).
 
 CRITICAL RULES:
-1. Return ONLY valid JSON - no markdown, no code blocks, no explanations
-2. All text fields must be in the requested language
-3. Numbers must be numeric type, not strings
-4. If uncertain, make educated guesses based on visible features
+1. Return ONLY valid JSON - no markdown, no code blocks
+2. Identify bottles accurately based on labels, shape, color
+3. Suggest only classic cocktails appropriate for the identified spirit
+4. Use proper Polish translations (lód kruszony, not kruszon)
 
-OUTPUT FORMAT (EXACTLY):
+OUTPUT FORMAT:
 {
-  "name": "[Product name]",
-  "brand": "[Brand]",
+  "name": "[Full product name]",
+  "brand": "[Brand name]",
   "type": "[whiskey|vodka|gin|rum|tequila|wine|champagne|beer|liqueur|other]",
-  "country": "[Country]",
+  "country": "[Country of origin]",
   "alcoholContent": [number],
-  "description": "[2-3 sentences about taste, production, characteristics]",
-  "servingSuggestions": ["[How to serve 1]", "[How to serve 2]", "[How to serve 3]"],
-  "cocktailSuggestions": ["[Cocktail 1]", "[Cocktail 2]", "[Cocktail 3]"]
+  "description": "[2-3 professional sentences about the product]",
+  "servingSuggestions": ["[How professionals serve it]"],
+  "cocktailSuggestions": ["[Only classic cocktails for this spirit]"]
 }
 
-POLISH EXAMPLE:
-{
-  "name": "Johnnie Walker Black Label",
-  "brand": "Johnnie Walker",
-  "type": "whiskey",
-  "country": "Szkocja",
-  "alcoholContent": 40,
-  "description": "Szkocka whisky blended o bogatym, złożonym smaku z nutami dymu i wanilii. Dojrzewa minimum 12 lat w dębowych beczkach.",
-  "servingSuggestions": ["Czysta z kostką lodu", "Z odrobiną wody", "W tumblrze"],
-  "cocktailSuggestions": ["Whisky Sour", "Old Fashioned", "Rob Roy"]
-}`;
+POLISH VOCABULARY:
+- neat = czysta
+- on the rocks = z lodem
+- with water = z wodą
+- chilled = schłodzona
+- room temperature = w temperaturze pokojowej`;
 
 module.exports = async (req, res) => {
   try {
@@ -44,8 +39,8 @@ module.exports = async (req, res) => {
     console.log(`Scanner request - Language: ${language}`);
     
     const userPrompt = language === 'pl' 
-      ? "Przeanalizuj zdjęcie butelki alkoholu i zwróć informacje w formacie JSON po polsku."
-      : "Analyze the alcohol bottle image and return information in JSON format in English.";
+      ? "Przeanalizuj butelkę alkoholu. Podaj dokładne informacje. Sugeruj tylko klasyczne koktajle odpowiednie dla tego alkoholu."
+      : "Analyze the alcohol bottle. Provide accurate information. Suggest only classic cocktails appropriate for this spirit.";
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -63,19 +58,18 @@ module.exports = async (req, res) => {
         }
       ],
       max_tokens: 1000,
-      temperature: 0.7
+      temperature: 0.3
     });
 
     const aiResponse = response.choices[0].message.content;
-    console.log('Raw Scanner AI Response:', aiResponse);
+    console.log('Raw Scanner AI Response:', aiResponse.substring(0, 200) + '...');
     
     // Clean response
     let cleanedResponse = aiResponse;
-    cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
-    cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
+    cleanedResponse = cleanedResponse.replace(/```json\s*/gi, '');
+    cleanedResponse = cleanedResponse.replace(/```\s*/gi, '');
     cleanedResponse = cleanedResponse.trim();
     
-    // Find JSON boundaries
     const firstBrace = cleanedResponse.indexOf('{');
     const lastBrace = cleanedResponse.lastIndexOf('}');
     
@@ -88,15 +82,27 @@ module.exports = async (req, res) => {
       parsedData = JSON.parse(cleanedResponse);
       console.log('Successfully parsed scanner data');
       
-      // Ensure alcoholContent is a number
+      // Ensure alcoholContent is number
       if (typeof parsedData.alcoholContent === 'string') {
         parsedData.alcoholContent = parseFloat(parsedData.alcoholContent) || 40;
       }
+      
+      // Validate cocktail suggestions are appropriate
+      if (parsedData.type === 'whiskey' && parsedData.cocktailSuggestions) {
+        const validWhiskeyCocktails = ['Old Fashioned', 'Manhattan', 'Whiskey Sour', 'Mint Julep', 'Boulevardier', 'Sazerac'];
+        parsedData.cocktailSuggestions = parsedData.cocktailSuggestions.filter(c => 
+          validWhiskeyCocktails.some(vc => c.toLowerCase().includes(vc.toLowerCase()))
+        );
+        if (parsedData.cocktailSuggestions.length === 0) {
+          parsedData.cocktailSuggestions = language === 'pl' 
+            ? ['Old Fashioned', 'Whiskey Sour', 'Manhattan']
+            : ['Old Fashioned', 'Whiskey Sour', 'Manhattan'];
+        }
+      }
+      
     } catch (e) {
       console.error('Scanner parse error:', e);
-      console.error('Failed to parse:', cleanedResponse.substring(0, 200));
       
-      // Fallback response
       parsedData = {
         name: language === 'pl' ? "Nierozpoznany alkohol" : "Unrecognized alcohol",
         brand: language === 'pl' ? "Nieznana" : "Unknown",
@@ -104,25 +110,24 @@ module.exports = async (req, res) => {
         country: language === 'pl' ? "Nieznany" : "Unknown",
         alcoholContent: 40,
         description: language === 'pl' 
-          ? "Nie udało się w pełni rozpoznać produktu. Spróbuj zrobić wyraźniejsze zdjęcie etykiety."
-          : "Could not fully recognize the product. Try taking a clearer photo of the label.",
+          ? "Nie udało się dokładnie rozpoznać produktu. Spróbuj zrobić wyraźniejsze zdjęcie etykiety."
+          : "Could not accurately identify the product. Try taking a clearer photo of the label.",
         servingSuggestions: language === 'pl' 
           ? ["Czysta", "Z lodem", "W koktajlach"]
           : ["Neat", "On the rocks", "In cocktails"],
         cocktailSuggestions: language === 'pl'
-          ? ["Klasyczne koktajle", "Drinki mieszane", "Shoty"]
-          : ["Classic cocktails", "Mixed drinks", "Shots"]
+          ? ["Klasyczne koktajle"]
+          : ["Classic cocktails"]
       };
     }
 
-    const result = {
+    res.json({
       data: {
         ...parsedData,
         confidence: 95
       }
-    };
-
-    res.json(result);
+    });
+    
   } catch (error) {
     console.error('Scanner error:', error);
     res.status(500).json({ error: error.message });
