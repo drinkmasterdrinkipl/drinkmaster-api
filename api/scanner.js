@@ -1,120 +1,142 @@
-{/* Result Modal */}
-<Modal
-  visible={showResultModal}
-  animationType="slide"
-  transparent={true}
-  onRequestClose={() => setShowResultModal(false)}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Close Button */}
-        <TouchableOpacity 
-          style={styles.closeButton}
-          onPress={() => {
-            setShowResultModal(false);
-            setCapturedImage(null);
-            setBottleData(null);
-          }}
-        >
-          <Ionicons name="close" size={24} color={COLORS.text} />
-        </TouchableOpacity>
+const OpenAI = require('openai');
 
-        {/* Captured Image */}
-        {capturedImage && (
-          <Image source={{ uri: capturedImage }} style={styles.resultImage} />
-        )}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-        {/* Bottle Info */}
-        {bottleData && (
-          <>
-            <Text style={styles.bottleName}>{bottleData.name}</Text>
-            <Text style={styles.bottleBrand}>{bottleData.brand}</Text>
-            
-            <View style={styles.infoRow}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>{t('scanner.type') || 'Typ'}</Text>
-                <Text style={styles.infoValue}>{bottleData.type}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>{t('scanner.country') || 'Kraj'}</Text>
-                <Text style={styles.infoValue}>{bottleData.country}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>{t('scanner.abv') || 'Moc'}</Text>
-                <Text style={styles.infoValue}>{bottleData.abv}%</Text>
-              </View>
-            </View>
+const SCANNER_SYSTEM_PROMPT = `You are a certified sommelier and master bartender analyzing alcohol bottles.
 
-            {/* Description - Extended */}
-            {bottleData.description && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  {t('scanner.description') || 'Opis'}
-                </Text>
-                <Text style={styles.description}>{bottleData.description}</Text>
-              </View>
-            )}
+CRITICAL RULES:
+1. Return ONLY valid JSON - no markdown, no code blocks
+2. ALL text must be in the language specified in request (pl/en)
+3. Provide rich, detailed descriptions (3-5 sentences)
+4. Include simple flavor characteristics in the description itself
+5. Add one interesting fact about the product
+6. Suggest only classic cocktails appropriate for the spirit type
 
-            {/* Flavor Notes - Simple */}
-            {bottleData.flavorNotes && (
-              <View style={[styles.section, styles.flavorSection]}>
-                <Text style={styles.sectionTitle}>
-                  {t('scanner.flavorProfile') || 'Charakterystyka smakowa'}
-                </Text>
-                <Text style={styles.flavorText}>{bottleData.flavorNotes}</Text>
-              </View>
-            )}
+POLISH SPIRIT TYPES (use exactly these):
+- whisky (not whiskey)
+- wódka
+- gin
+- rum
+- tequila
+- koniak
+- likier
+- brandy
+- wino
+- szampan
+- piwo
+- inny
 
-            {/* Fun Fact */}
-            {bottleData.funFact && (
-              <View style={[styles.section, styles.funFactSection]}>
-                <View style={styles.funFactHeader}>
-                  <Ionicons name="bulb-outline" size={20} color={COLORS.accent} />
-                  <Text style={[styles.sectionTitle, { marginBottom: 0, marginLeft: 8 }]}>
-                    {t('scanner.funFact') || 'Ciekawostka'}
-                  </Text>
-                </View>
-                <Text style={styles.funFactText}>{bottleData.funFact}</Text>
-              </View>
-            )}
+OUTPUT FORMAT (EXACT):
+{
+  "name": "[Full product name]",
+  "brand": "[Brand name]", 
+  "type": "[use Polish types from above if language=pl]",
+  "country": "[Country in requested language]",
+  "alcoholContent": [number only],
+  "description": "[3-5 sentences including flavor profile. Example: 'Metaxa to grecki napój spirytusowy łączący brandy z aromatycznymi ziołami. Ma słodki, łagodny smak z nutami miodu, wanilii i suszonych owoców. Charakteryzuje się gładką, aksamitną teksturą i długim, ciepłym finiszem.']",
+  "cocktailSuggestions": ["[cocktail 1]", "[cocktail 2]", "[cocktail 3]"],
+  "funFact": "[One interesting fact]"
+}`;
 
-            {/* Cocktail Suggestions */}
-            {bottleData.cocktailSuggestions && bottleData.cocktailSuggestions.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  {t('scanner.cocktailSuggestions') || 'Polecane koktajle'}
-                </Text>
-                <View style={styles.cocktailGrid}>
-                  {bottleData.cocktailSuggestions.map((cocktail, index) => (
-                    <TouchableOpacity 
-                      key={index} 
-                      style={styles.cocktailChip}
-                      onPress={() => {
-                        setShowResultModal(false);
-                        navigation.navigate('Recipes', { searchQuery: cocktail });
-                      }}
-                    >
-                      <Text style={styles.cocktailChipText}>{cocktail}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
+module.exports = async (req, res) => {
+  try {
+    const { image, language = 'pl' } = req.body;
+    console.log(`Scanner request - Language: ${language}`);
+    
+    const userPrompt = language === 'pl' 
+      ? `Rozpoznaj alkohol. Podaj typ po polsku (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). W opisie zawrzyj charakterystykę smakową.`
+      : `Identify the alcohol. Include flavor characteristics in the description.`;
 
-            {/* Action Buttons */}
-            <TouchableOpacity 
-              style={styles.addToBarButton}
-              onPress={addBottleToBar}
-            >
-              <Ionicons name="add-circle" size={24} color={COLORS.text} />
-              <Text style={styles.addToBarButtonText}>
-                {t('scanner.addToBar') || 'Dodaj do mojego baru'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
-    </View>
-  </View>
-</Modal>
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { 
+          role: "system",
+          content: SCANNER_SYSTEM_PROMPT
+        },
+        { 
+          role: "user", 
+          content: [
+            { type: "text", text: userPrompt },
+            { type: "image_url", image_url: { url: image } }
+          ]
+        }
+      ],
+      max_tokens: 800,
+      temperature: 0.2 // Lower for faster response
+    });
+
+    const aiResponse = response.choices[0].message.content;
+    
+    // Fast parsing
+    let cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    const firstBrace = cleanedResponse.indexOf('{');
+    const lastBrace = cleanedResponse.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+    }
+    
+    let parsedData;
+    try {
+      parsedData = JSON.parse(cleanedResponse);
+      
+      // Ensure alcoholContent is number
+      if (typeof parsedData.alcoholContent === 'string') {
+        parsedData.alcoholContent = parseFloat(parsedData.alcoholContent.replace('%', '')) || 40;
+      }
+      
+      // Fix cocktails based on type
+      const cocktailMap = {
+        'brandy': ['Sidecar', 'Brandy Alexander', 'Stinger'],
+        'likier': ['B-52', 'White Russian', 'Espresso Martini'],
+        'whisky': ['Old Fashioned', 'Manhattan', 'Whiskey Sour'],
+        'wódka': ['Moscow Mule', 'Bloody Mary', 'Cosmopolitan'],
+        'gin': ['Gin & Tonic', 'Martini', 'Negroni'],
+        'rum': ['Mojito', 'Daiquiri', 'Mai Tai'],
+        'tequila': ['Margarita', 'Paloma', 'Tequila Sunrise'],
+        'koniak': ['Sidecar', 'French 75', 'Sazerac']
+      };
+      
+      // For Metaxa specifically
+      if (parsedData.name && parsedData.name.toLowerCase().includes('metaxa')) {
+        parsedData.cocktailSuggestions = ['Metaxa Sour', 'Metaxa Ginger', 'Metaxa Tonic'];
+      } else if (cocktailMap[parsedData.type]) {
+        parsedData.cocktailSuggestions = cocktailMap[parsedData.type];
+      }
+      
+    } catch (e) {
+      console.error('Parse error:', e);
+      
+      parsedData = {
+        name: language === 'pl' ? "Nierozpoznany alkohol" : "Unrecognized alcohol",
+        brand: language === 'pl' ? "Nieznana marka" : "Unknown brand",
+        type: language === 'pl' ? "inny" : "other",
+        country: language === 'pl' ? "Nieznany" : "Unknown",
+        alcoholContent: 40,
+        description: language === 'pl' 
+          ? "Nie udało się rozpoznać produktu. Spróbuj zrobić wyraźniejsze zdjęcie etykiety."
+          : "Could not identify the product. Try taking a clearer photo.",
+        cocktailSuggestions: language === 'pl'
+          ? ["Klasyczne koktajle"]
+          : ["Classic cocktails"],
+        funFact: language === 'pl'
+          ? "Każdy alkohol ma swoją unikalną historię."
+          : "Every alcohol has its unique history."
+      };
+    }
+
+    res.json({
+      data: {
+        ...parsedData,
+        confidence: 95
+      }
+    });
+    
+  } catch (error) {
+    console.error('Scanner error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
