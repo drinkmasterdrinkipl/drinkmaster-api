@@ -4,67 +4,65 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender with IBA certification and deep knowledge of classic cocktail recipes.
+const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients.
 
-LANGUAGE: Respond in the requested language (pl/en).
+CRITICAL RULES:
+1. Use ONLY authentic classic recipes with correct base spirits
+2. Return ONLY valid JSON - no markdown
+3. ALL text in requested language (pl/en)
+4. Never return empty ingredients arrays
+5. Use exact ingredient names from user input
 
-CRITICAL COCKTAIL RULES:
-1. Use ONLY authentic IBA (International Bartenders Association) recipes
-2. NEVER substitute base spirits (Mint Julep = bourbon, Mojito = white rum, etc.)
-3. Respect classic proportions and methods
-4. Return ONLY valid JSON without any markdown
+CLASSIC RECIPES (NEVER CHANGE BASE SPIRIT):
+- Mint Julep: BOURBON (not rum), mint, sugar, crushed ice
+- Mojito: WHITE RUM (not whisky), lime, mint, sugar, soda
+- Whiskey Sour: WHISKEY/BOURBON, lemon, sugar
+- Daiquiri: WHITE RUM, lime, sugar
+- Margarita: TEQUILA, Cointreau/Triple Sec, lime
+- Martini: GIN, dry vermouth
+- Manhattan: RYE/BOURBON, sweet vermouth, bitters
+- Old Fashioned: BOURBON/RYE, sugar, bitters
 
-CLASSIC RECIPES (MUST BE EXACT):
-- Mint Julep: 60ml bourbon, 10ml simple syrup, 8 mint leaves, crushed ice
-- Mojito: 45ml white rum, 20ml lime juice, 6 mint leaves, 2 tsp sugar, soda water
-- Whiskey Sour: 45ml bourbon, 25ml lemon juice, 20ml simple syrup, optional egg white
-- Old Fashioned: 45ml bourbon/rye, 1 sugar cube, 2 dashes Angostura bitters
-- Martini: 60ml gin, 10ml dry vermouth
-- Manhattan: 50ml rye whiskey, 20ml sweet vermouth, 2 dashes Angostura
-- Negroni: 30ml gin, 30ml Campari, 30ml sweet vermouth
-- Margarita: 35ml tequila, 20ml Cointreau, 15ml lime juice
-- Daiquiri: 45ml white rum, 25ml lime juice, 15ml simple syrup
-- Mai Tai: 30ml white rum, 15ml dark rum, 15ml Orange Curaçao, 15ml Orgeat, 30ml lime juice
+ICE USAGE:
+- Mojito, Mint Julep = lód kruszony (crushed ice)
+- Most cocktails = kostki lodu (ice cubes)
+- Old Fashioned = duża kostka (large cube)
 
-POLISH UNITS (EXACT TRANSLATIONS):
+POLISH UNITS:
 - ml = ml
-- pieces = sztuki (1 sztuka, 2-4 sztuki, 5+ sztuk)
-- dashes = krople (1 kropla, 2-4 krople, 5+ kropli)
-- bar spoon = łyżka barmańska
-- leaves = listki
-- crushed ice = lód kruszony
-- ice cubes = kostki lodu
-- tsp = łyżeczka
-- pinch = szczypta
+- pieces = sztuki
+- leaves = listki  
+- dashes = krople
+- tsp = łyżeczki
 
 OUTPUT FORMAT:
 {
   "cocktails": [
     {
-      "name": "[Exact cocktail name]",
+      "name": "Name",
       "available": true,
-      "description": "[Professional description]",
+      "description": "Description",
       "difficulty": "easy|medium|hard",
       "ingredients": [
-        {"name": "[exact ingredient]", "amount": "[exact amount]", "unit": "[correct unit]"}
+        {"name": "ingredient", "amount": "amount", "unit": "unit"}
       ],
-      "instructions": ["[Professional step]"],
-      "glassType": "[Correct glass]"
+      "instructions": ["step1", "step2"],
+      "glassType": "glass"
     }
   ],
   "almostPossible": {
-    "name": "[Classic cocktail]",
-    "missingIngredient": "[What's missing]",
-    "description": "[Why it's worth making]",
-    "ingredients": [{"name": "", "amount": "", "unit": ""}]
+    "name": "Cocktail",
+    "missingIngredient": "What's missing",
+    "description": "Description",
+    "ingredients": [full ingredient list]
   },
   "shoppingList": [
     {
-      "ingredient": "[Strategic addition]",
-      "unlocksCount": [realistic number],
+      "ingredient": "Item",
+      "unlocksCount": number,
       "priority": "high|medium|low",
-      "reason": "[Professional reasoning]",
-      "newCocktails": ["[Classic 1]", "[Classic 2]", "[Classic 3]"]
+      "reason": "Why recommended",
+      "newCocktails": ["cocktail1", "cocktail2"]
     }
   ]
 }`;
@@ -75,25 +73,26 @@ module.exports = async (req, res) => {
     console.log(`MyBar request - Ingredients: ${ingredients}, Language: ${language}`);
     
     const userPrompt = language === 'pl'
-      ? `Składniki: ${ingredients}
+      ? `Mam składniki: ${ingredients}
 
-ZASADY BARMANA:
-1. Używaj TYLKO klasycznych, sprawdzonych receptur
-2. Mint Julep = bourbon (NIE rum!), Mojito = biały rum (NIE whisky!)
-3. Lód kruszony = "lód kruszony", NIE "kruszon"
-4. Dokładne proporcje w ml, sztukach, kroplach
-5. Profesjonalne opisy
+WAŻNE:
+- Używaj dokładnie nazw składników które podałem (jeśli napisałem "whisky" nie zmieniaj na "bourbon")
+- Podaj TYLKO autentyczne, klasyczne przepisy
+- Mint Julep ZAWSZE z bourbonem, Mojito ZAWSZE z białym rumem
+- Pełne listy składników dla każdego koktajlu
+- Lód kruszony gdzie potrzebny (Mojito, Julep)
 
-Zasugeruj koktajle które mogę zrobić, jeden prawie możliwy (brak 1 składnika) i strategiczny zakup.`
-      : `Ingredients: ${ingredients}
+Zasugeruj koktajle możliwe do zrobienia, jeden prawie możliwy i strategiczny zakup.`
+      : `I have ingredients: ${ingredients}
 
-BARTENDER RULES:
-1. Use ONLY classic, authentic recipes
-2. Mint Julep = bourbon (NOT rum!), Mojito = white rum (NOT whisky!)
-3. Exact proportions in ml, pieces, dashes
-4. Professional descriptions
+IMPORTANT:
+- Use exactly the ingredient names I provided
+- ONLY authentic, classic recipes
+- Mint Julep ALWAYS with bourbon, Mojito ALWAYS with white rum
+- Complete ingredient lists for each cocktail
+- Crushed ice where appropriate
 
-Suggest cocktails I can make, one almost possible (missing 1 ingredient), and strategic purchase.`;
+Suggest available cocktails, one almost possible, and strategic purchase.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -101,7 +100,7 @@ Suggest cocktails I can make, one almost possible (missing 1 ingredient), and st
         { role: "system", content: MYBAR_SYSTEM_PROMPT },
         { role: "user", content: userPrompt }
       ],
-      temperature: 0.3, // Niska dla dokładności
+      temperature: 0.3,
       max_tokens: 2500,
     });
 
@@ -126,106 +125,106 @@ Suggest cocktails I can make, one almost possible (missing 1 ingredient), and st
       suggestions = JSON.parse(cleanedResponse);
       console.log('Successfully parsed MyBar JSON');
       
-      // Validate classic recipes
+      // Validate and fix data
       if (suggestions.cocktails) {
-        suggestions.cocktails.forEach(cocktail => {
-          // Sprawdź Mint Julep
-          if (cocktail.name.toLowerCase().includes('julep')) {
-            const wrongIngredient = cocktail.ingredients.find(i => 
-              i.name.toLowerCase().includes('rum')
-            );
-            if (wrongIngredient) {
-              console.error('ERROR: Mint Julep with rum detected! Fixing...');
-              wrongIngredient.name = 'Bourbon';
-              wrongIngredient.amount = '60';
-            }
+        suggestions.cocktails = suggestions.cocktails.filter(cocktail => {
+          // Ensure ingredients exist
+          if (!cocktail.ingredients || cocktail.ingredients.length === 0) {
+            console.error('Removing cocktail with no ingredients:', cocktail.name);
+            return false;
           }
           
-          // Popraw jednostki lodu
+          // Fix classic recipes if wrong
+          if (cocktail.name.toLowerCase().includes('julep') && 
+              cocktail.ingredients.some(i => i.name.toLowerCase().includes('rum'))) {
+            console.log('Fixing Mint Julep - changing rum to bourbon');
+            cocktail.ingredients.forEach(ing => {
+              if (ing.name.toLowerCase().includes('rum')) {
+                ing.name = 'Bourbon';
+              }
+            });
+          }
+          
+          if (cocktail.name.toLowerCase().includes('mojito') && 
+              cocktail.ingredients.some(i => i.name.toLowerCase().includes('whisk'))) {
+            console.log('Fixing Mojito - changing whisky to white rum');
+            cocktail.ingredients.forEach(ing => {
+              if (ing.name.toLowerCase().includes('whisk')) {
+                ing.name = language === 'pl' ? 'Biały rum' : 'White rum';
+              }
+            });
+          }
+          
+          // Fix ice
           cocktail.ingredients.forEach(ing => {
             if (ing.name.toLowerCase().includes('lód') || ing.name.toLowerCase().includes('ice')) {
-              if (ing.unit === 'ml' || ing.unit === 'kruszon') {
-                if (ing.name.toLowerCase().includes('krusz') || ing.name.toLowerCase().includes('crush')) {
-                  ing.unit = language === 'pl' ? 'kruszony' : 'crushed';
-                  ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
-                } else {
-                  ing.unit = language === 'pl' ? 'kostki' : 'cubes';
-                }
+              ing.unit = "";
+              
+              if (cocktail.name.toLowerCase().includes('mojito') || 
+                  cocktail.name.toLowerCase().includes('julep')) {
+                ing.name = language === 'pl' ? 'Lód kruszony' : 'Crushed ice';
+                ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
+              } else if (cocktail.name.toLowerCase().includes('old fashioned')) {
+                ing.name = language === 'pl' ? 'Duża kostka lodu' : 'Large ice cube';
+                ing.amount = '1';
+              } else {
+                ing.name = language === 'pl' ? 'Kostki lodu' : 'Ice cubes';
+                ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
               }
             }
           });
+          
+          // Ensure required fields
+          cocktail.instructions = cocktail.instructions || [
+            language === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
+          ];
+          cocktail.glassType = cocktail.glassType || (
+            language === 'pl' ? 'odpowiednia szklanka' : 'appropriate glass'
+          );
+          
+          return true;
         });
       }
+      
+      // Fix almostPossible
+      if (suggestions.almostPossible && 
+          (!suggestions.almostPossible.ingredients || suggestions.almostPossible.ingredients.length === 0)) {
+        console.log('Fixing empty ingredients in almostPossible');
+        suggestions.almostPossible = null;
+      }
+      
     } catch (e) {
       console.error('MyBar parse error:', e);
       
-      // Professional fallback based on ingredients
-      const ingLower = ingredients.toLowerCase();
-      const hasWhisky = ingLower.includes('whisk') || ingLower.includes('bourbon');
-      const hasLemon = ingLower.includes('cytry') || ingLower.includes('lemon');
-      const hasSugar = ingLower.includes('cukier') || ingLower.includes('sugar') || ingLower.includes('syrop');
-      
+      // Safe fallback
       suggestions = {
-        cocktails: [],
-        almostPossible: null,
-        shoppingList: []
-      };
-      
-      // Whiskey Sour jeśli mamy whisky, cytrynę i cukier
-      if (hasWhisky && hasLemon && hasSugar) {
-        suggestions.cocktails.push({
-          name: "Whiskey Sour",
+        cocktails: [{
+          name: language === 'pl' ? "Prosty drink" : "Simple drink",
           available: true,
           description: language === 'pl' 
-            ? "Klasyczny sour - idealny balans whisky, świeżej cytryny i słodyczy. Drink z 1860 roku."
-            : "Classic sour - perfect balance of whiskey, fresh lemon and sweetness. Dating from 1860.",
+            ? "Klasyczny drink z dostępnych składników"
+            : "Classic drink with available ingredients",
           difficulty: "easy",
           ingredients: [
-            { name: language === 'pl' ? "Bourbon" : "Bourbon", amount: "45", unit: "ml" },
-            { name: language === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml" },
-            { name: language === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml" },
-            { name: language === 'pl' ? "Lód" : "Ice", amount: language === 'pl' ? "do pełna" : "fill with", unit: language === 'pl' ? "kostki" : "cubes" }
+            { name: language === 'pl' ? "Alkohol" : "Spirit", amount: "50", unit: "ml" },
+            { name: language === 'pl' ? "Kostki lodu" : "Ice cubes", amount: language === 'pl' ? "do pełna" : "fill with", unit: "" }
           ],
           instructions: language === 'pl'
-            ? [
-                "Wstrząśnij bourbon, sok z cytryny i syrop z lodem",
-                "Wstrząsaj energicznie przez 15 sekund",
-                "Przecedź do szklanki old-fashioned z lodem",
-                "Opcjonalnie: udekoruj plasterkiem cytryny i wisienką"
-              ]
-            : [
-                "Shake bourbon, lemon juice and syrup with ice",
-                "Shake vigorously for 15 seconds",
-                "Strain into old-fashioned glass with ice",
-                "Optional: garnish with lemon slice and cherry"
-              ],
-          glassType: language === 'pl' ? "szklanka old-fashioned" : "old-fashioned glass"
-        });
-        
-        suggestions.almostPossible = {
-          name: "Boston Sour",
-          missingIngredient: language === 'pl' ? "Białko jaja" : "Egg white",
-          description: language === 'pl'
-            ? "Dodając białko, stworzysz kremową pianę i bardziej aksamitną teksturę"
-            : "Adding egg white creates creamy foam and silkier texture",
-          ingredients: [
-            { name: language === 'pl' ? "Bourbon" : "Bourbon", amount: "45", unit: "ml" },
-            { name: language === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml" },
-            { name: language === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml" },
-            { name: language === 'pl' ? "Białko jaja" : "Egg white", amount: "1", unit: language === 'pl' ? "sztuka" : "piece" }
-          ]
-        };
-        
-        suggestions.shoppingList = [{
-          ingredient: language === 'pl' ? "Angostura bitters" : "Angostura bitters",
-          unlocksCount: 12,
+            ? ["Napełnij szklankę lodem", "Dodaj alkohol", "Wymieszaj"]
+            : ["Fill glass with ice", "Add spirit", "Stir"],
+          glassType: language === 'pl' ? "szklanka" : "glass"
+        }],
+        almostPossible: null,
+        shoppingList: [{
+          ingredient: language === 'pl' ? "Cytryna" : "Lemon",
+          unlocksCount: 5,
           priority: "high",
           reason: language === 'pl' 
-            ? "Niezbędny składnik do Old Fashioned, Manhattan, Whiskey Sour Deluxe i wielu klasycznych koktajli"
-            : "Essential for Old Fashioned, Manhattan, Whiskey Sour Deluxe and many classic cocktails",
-          newCocktails: ["Old Fashioned", "Manhattan", "Sazerac", "Whiskey Sour Deluxe", "Vieux Carré"]
-        }];
-      }
+            ? "Podstawa wielu klasycznych koktajli"
+            : "Essential for many classic cocktails",
+          newCocktails: ["Whiskey Sour", "Tom Collins", "Daiquiri"]
+        }]
+      };
     }
 
     // Transform for frontend
@@ -234,14 +233,15 @@ Suggest cocktails I can make, one almost possible (missing 1 ingredient), and st
       shoppingList: suggestions.shoppingList || []
     };
     
-    if (suggestions.almostPossible) {
+    if (suggestions.almostPossible && suggestions.almostPossible.ingredients && 
+        suggestions.almostPossible.ingredients.length > 0) {
       transformedResponse.missingOneIngredient = [{
         drink: {
           ...suggestions.almostPossible,
           available: false,
-          difficulty: suggestions.almostPossible.difficulty || "medium",
+          difficulty: suggestions.almostPossible.difficulty || "easy",
           instructions: suggestions.almostPossible.instructions || [],
-          glassType: suggestions.almostPossible.glassType || (language === 'pl' ? "kieliszek" : "glass")
+          glassType: suggestions.almostPossible.glassType || (language === 'pl' ? "szklanka" : "glass")
         },
         missingIngredient: suggestions.almostPossible.missingIngredient
       }];
