@@ -4,200 +4,167 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const RECIPE_SYSTEM_PROMPT = `You are an IBA-certified master bartender creating authentic cocktail recipes.
+const RECIPE_SYSTEM_PROMPT = `Jesteś ekspertem barmana z 20-letnim doświadczeniem w najlepszych barach świata. Tworzysz precyzyjne, profesjonalne przepisy na koktajle z prawdziwą historią i dokładnymi proporcjami używanymi w renomowanych barach.
 
 CRITICAL RULES:
-1. Use ONLY authentic IBA recipes or classic cocktail standards
-2. Return ONLY valid JSON - no markdown, no extra text
-3. ALL text in the language specified (pl/en)
-4. Use exact measurements and proper ice types
-5. Professional bartending terminology
+1. Return ONLY valid JSON - no markdown, no code blocks
+2. ALL text must be in the language specified in request (pl/en)
+3. Use REAL historical facts with accurate dates and locations
+4. Provide EXACT measurements in ml as used in professional bars
+5. Include professional bartending techniques
+6. Specify exact glass type and serving temperature
 
-ICE TYPES & USAGE:
-- Crushed ice (lód kruszony) - for Mojito, Mint Julep, Bramble
-- Ice cubes (kostki lodu) - for most cocktails  
-- Large ice cube (duża kostka) - for Old Fashioned, Negroni
-- No ice measurement in ml/g - use "do pełna" or descriptive amount
-
-POLISH TRANSLATIONS (EXACT):
-- ml = ml
-- pieces = sztuki (1 sztuka, 2-4 sztuki, 5+ sztuk)
-- dashes = krople (1 kropla, 2-4 krople, 5+ kropli)
-- bar spoon = łyżka barmańska
-- leaves = listki
-- slice = plasterek
-- wedge = ćwiartka
-- wheel = krążek
-- sprig = gałązka
-- muddled = rozgniecione
-- crushed ice = lód kruszony
-- ice cubes = kostki lodu
-- fill with = do pełna
-
-GLASSWARE POLISH:
-- old-fashioned glass = szklanka old-fashioned
-- highball glass = szklanka highball
-- coupe glass = kieliszek coupe
-- martini glass = kieliszek martini
-- collins glass = szklanka collins
-- wine glass = kieliszek do wina
-- flute = kieliszek flute
-- mug = kubek
-
-OUTPUT FORMAT:
+OUTPUT FORMAT (EXACT):
 {
   "name": "[Cocktail name]",
-  "category": "classic|modern|tiki|shot",
-  "difficulty": "easy|medium|hard",
-  "prepTime": [number],
-  "history": "[2-3 sentences about origin]",
+  "category": "classic/modern/tiki/sour",
+  "history": "[2-3 sentences with REAL dates, places, and creator names]",
   "ingredients": [
-    {"name": "[ingredient]", "amount": "[amount]", "unit": "[unit or empty for ice]"}
+    {"name": "[ingredient]", "amount": [number], "unit": "ml/dash/barspoon"},
+    {"name": "[ingredient]", "amount": [number], "unit": "ml/dash/barspoon"}
   ],
-  "glassType": "[glass type]",
-  "method": "shaken|stirred|built|thrown|blended|layered",
+  "glassType": "[exact glass type: coupe/highball/rocks/martini/collins/hurricane]",
+  "method": "shaken/stirred/built/blended/thrown",
   "instructions": [
-    "[Step 1]",
-    "[Step 2]"
+    "[Professional step 1]",
+    "[Professional step 2]",
+    "[Professional step 3]"
   ],
-  "garnish": "[Garnish description]",
-  "tips": "[Pro tip]",
-  "funFact": "[Interesting fact]",
-  "alcoholContent": "low|medium|high",
-  "tags": ["tag1", "tag2", "tag3"]
+  "garnish": "[Professional garnish description]",
+  "ice": "[Type of ice: cubed/crushed/sphere/none]",
+  "servingTemp": "[Temperature in Celsius]",
+  "abv": [approximate percentage],
+  "flavor": "[Flavor profile description]",
+  "occasion": "[When to serve this cocktail]",
+  "proTip": "[Professional bartender tip]"
 }`;
 
 module.exports = async (req, res) => {
+  console.log('🍹 Recipe generator endpoint called');
+  
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { alcoholName, language = 'pl' } = req.body;
-    console.log(`Recipe request - Cocktail: ${alcoholName}, Language: ${language}`);
+    const { cocktailName, ingredients = [], language = 'pl' } = req.body;
+    console.log(`📝 Generating recipe for: ${cocktailName} in ${language}`);
+
+    let userPrompt;
     
-    const userPrompt = language === 'pl'
-      ? `Stwórz autentyczny przepis na koktajl "${alcoholName}". 
+    if (language === 'pl') {
+      userPrompt = `Stwórz profesjonalny przepis na koktajl "${cocktailName}".
       
 WYMAGANIA:
-- Klasyczna receptura IBA lub uznany standard
-- Dokładne proporcje w ml
-- Rodzaj lodu odpowiedni do koktajlu (lód kruszony dla Mojito/Julep, kostki dla większości)
-- Wszystko po polsku, włącznie z nazwami szklanek
-- Profesjonalne kroki przygotowania`
-      : `Create authentic recipe for "${alcoholName}" cocktail.
+- Prawdziwa historia koktajlu z konkretnymi datami i twórcami
+- Dokładne proporcje składników w ml (standardy IBA jeśli istnieją)
+- Profesjonalne techniki barmańskie
+- Temperatura serwowania w °C
+- Rodzaj lodu i szkła
 
+${ingredients.length > 0 ? `Użyj tych składników: ${ingredients.join(', ')}` : ''}`;
+    } else {
+      userPrompt = `Create a professional cocktail recipe for "${cocktailName}".
+      
 REQUIREMENTS:
-- Classic IBA recipe or recognized standard
-- Exact proportions in ml
-- Appropriate ice type for the cocktail
-- Professional preparation steps`;
+- Real cocktail history with specific dates and creators
+- Exact ingredient measurements in ml (IBA standards if applicable)
+- Professional bartending techniques
+- Serving temperature in °C
+- Ice type and glassware
 
-    const response = await openai.chat.completions.create({
+${ingredients.length > 0 ? `Use these ingredients: ${ingredients.join(', ')}` : ''}`;
+    }
+
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: RECIPE_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt }
+        { 
+          role: "system", 
+          content: RECIPE_SYSTEM_PROMPT
+        },
+        { 
+          role: "user", 
+          content: userPrompt
+        }
       ],
       temperature: 0.3,
-      max_tokens: 2000,
+      max_tokens: 1200
     });
 
-    const aiResponse = response.choices[0].message.content;
-    console.log('Raw Recipe AI Response:', aiResponse.substring(0, 200) + '...');
+    const aiResponse = completion.choices[0].message.content;
+    console.log('🤖 AI Response received');
     
-    // Clean response
-    let cleanedResponse = aiResponse;
-    cleanedResponse = cleanedResponse.replace(/```json\s*/gi, '');
-    cleanedResponse = cleanedResponse.replace(/```\s*/gi, '');
-    cleanedResponse = cleanedResponse.trim();
-    
-    const firstBrace = cleanedResponse.indexOf('{');
-    const lastBrace = cleanedResponse.lastIndexOf('}');
-    
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
-    }
-    
-    let cocktailData;
+    // Parse response
+    let recipe;
     try {
-      cocktailData = JSON.parse(cleanedResponse);
-      console.log('Successfully parsed recipe data');
+      const cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+      recipe = JSON.parse(cleanedResponse);
       
-      // Fix common issues
-      if (cocktailData.ingredients) {
-        cocktailData.ingredients.forEach(ing => {
-          // Fix ice - never use ml or grams
-          if (ing.name.toLowerCase().includes('lód') || ing.name.toLowerCase().includes('ice')) {
-            ing.unit = ""; // No unit for ice
-            
-            // Determine ice amount based on cocktail type
-            const cocktailName = alcoholName.toLowerCase();
-            if (cocktailName.includes('mojito') || cocktailName.includes('julep')) {
-              ing.name = language === 'pl' ? 'Lód kruszony' : 'Crushed ice';
-              ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
-            } else if (cocktailName.includes('old fashioned') || cocktailName.includes('negroni')) {
-              ing.name = language === 'pl' ? 'Duża kostka lodu' : 'Large ice cube';
-              ing.amount = "1";
-            } else {
-              ing.name = language === 'pl' ? 'Kostki lodu' : 'Ice cubes';
-              ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
-            }
-          }
-          
-          // Fix Polish units
-          if (language === 'pl' && ing.unit) {
-            const amount = parseInt(ing.amount) || 1;
-            
-            if (ing.unit.toLowerCase().includes('piece') || ing.unit === 'sztuka') {
-              ing.unit = amount === 1 ? 'sztuka' : amount < 5 ? 'sztuki' : 'sztuk';
-            } else if (ing.unit.toLowerCase().includes('dash') || ing.unit === 'kropla') {
-              ing.unit = amount === 1 ? 'kropla' : amount < 5 ? 'krople' : 'kropli';
-            } else if (ing.unit.toLowerCase().includes('leaf') || ing.unit.toLowerCase().includes('leaves')) {
-              ing.unit = 'listki';
-            } else if (ing.unit === 'tsp' || ing.unit.toLowerCase().includes('teaspoon')) {
-              ing.unit = 'łyżeczki';
-            }
-          }
-        });
+      // Add default values if missing
+      recipe.servingTemp = recipe.servingTemp || "6-8";
+      recipe.ice = recipe.ice || "cubed";
+      recipe.abv = recipe.abv || 20;
+      
+      // Ensure proper formatting
+      if (recipe.ingredients) {
+        recipe.ingredients = recipe.ingredients.map(ing => ({
+          name: ing.name,
+          amount: typeof ing.amount === 'string' ? parseFloat(ing.amount) || ing.amount : ing.amount,
+          unit: ing.unit || 'ml'
+        }));
       }
       
-      // Ensure prepTime is number
-      cocktailData.prepTime = parseInt(cocktailData.prepTime) || 5;
+    } catch (parseError) {
+      console.error('Parse error:', parseError);
       
-    } catch (e) {
-      console.error('Recipe parse error:', e);
-      
-      // Professional fallback
-      cocktailData = {
-        name: alcoholName,
+      // Fallback for parsing errors
+      recipe = {
+        name: cocktailName,
         category: "classic",
-        difficulty: "medium",
-        prepTime: 5,
         history: language === 'pl' 
-          ? `${alcoholName} to klasyczny koktajl ceniony przez koneserów na całym świecie.`
-          : `${alcoholName} is a classic cocktail appreciated by connoisseurs worldwide.`,
+          ? `${cocktailName} to klasyczny koktajl o bogatej historii.`
+          : `${cocktailName} is a classic cocktail with a rich history.`,
         ingredients: [
-          { name: language === 'pl' ? "Baza alkoholowa" : "Spirit base", amount: "60", unit: "ml" },
-          { name: language === 'pl' ? "Kostki lodu" : "Ice cubes", amount: language === 'pl' ? "do pełna" : "fill with", unit: "" }
+          { name: language === 'pl' ? "Główny alkohol" : "Base spirit", amount: 60, unit: "ml" },
+          { name: language === 'pl' ? "Modyfikator" : "Modifier", amount: 30, unit: "ml" }
         ],
-        glassType: language === 'pl' ? "szklanka old-fashioned" : "old-fashioned glass",
+        glassType: "rocks",
         method: "stirred",
-        instructions: language === 'pl'
-          ? ["Napełnij szklankę lodem", "Dodaj alkohol", "Mieszaj 30 sekund", "Podaj"]
-          : ["Fill glass with ice", "Add spirit", "Stir for 30 seconds", "Serve"],
-        garnish: language === 'pl' ? "Według uznania" : "As preferred",
-        tips: language === 'pl' ? "Używaj wysokiej jakości składników" : "Use high quality ingredients",
-        funFact: language === 'pl' ? "Każdy barman ma swoją interpretację" : "Every bartender has their interpretation",
-        alcoholContent: "medium",
-        tags: language === 'pl' ? ["klasyczny"] : ["classic"]
+        instructions: language === 'pl' 
+          ? ["Dodaj wszystkie składniki do szklanki", "Wymieszaj", "Podaj z lodem"]
+          : ["Add all ingredients to glass", "Stir well", "Serve over ice"],
+        garnish: language === 'pl' ? "Skórka cytryny" : "Lemon peel",
+        ice: "cubed",
+        servingTemp: "6-8",
+        abv: 25,
+        flavor: language === 'pl' ? "Zbalansowany" : "Balanced",
+        occasion: language === 'pl' ? "Wieczór" : "Evening",
+        proTip: language === 'pl' 
+          ? "Używaj świeżych składników"
+          : "Use fresh ingredients"
       };
     }
 
-    res.json({
+    // Format final response
+    const response = {
       data: {
-        cocktails: [cocktailData]
+        cocktail: {
+          ...recipe,
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString()
+        }
       }
-    });
+    };
+
+    console.log('✅ Sending professional recipe');
+    res.status(200).json(response);
     
   } catch (error) {
-    console.error('Recipe error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Recipe generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate recipe',
+      details: error.message 
+    });
   }
 };
