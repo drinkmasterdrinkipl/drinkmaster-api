@@ -10,13 +10,20 @@ CRITICAL RULES:
 1. Return ONLY valid JSON - no markdown, no code blocks
 2. ALL text must be in the language specified in request (pl/en)
 3. Use REAL historical facts with accurate dates and locations
-4. Provide EXACT measurements in ml as used in professional bars (except for ice and herbs)
+4. Provide EXACT measurements in ml as used in professional bars
 5. Include DETAILED professional bartending techniques
 6. Specify exact glass type
 7. NO EMOJIS - use plain text only
 8. servingTemp: return NUMBER ONLY without °C (e.g., "5" not "5°C")
 9. abv: return NUMBER ONLY without % or ~ (e.g., 25 not "~25%")
 10. method: always return in English ("shaken", "stirred", "built", "blended")
+11. NEVER include ice in ingredients list - mention it only in instructions
+
+ICE RULES:
+- Ice should NEVER appear in the ingredients array
+- Ice usage should only be mentioned in instructions
+- Polish: "Napełnij szklanicę lodem", "Dodaj kruszony lód", etc.
+- English: "Fill glass with ice", "Add crushed ice", etc.
 
 POLISH LANGUAGE RULES:
 - mixing glass → "szklanica barmańska" (NOT "szklanka mieszająca")
@@ -25,27 +32,19 @@ POLISH LANGUAGE RULES:
 - fresh mint → "świeża mięta"
 - mint leaves → "listki" or "listków" (NEVER "leaves")
 - simple syrup → "syrop cukrowy"
-- sugar → "cukier"
-- ice cubes → "kostki lodu"
-- crushed ice → "kruszony lód"
 - For cocktails served straight up: ice = "brak"
 
 STIRRED DRINKS RULE:
-For all stirred cocktails (Negroni, Manhattan, Martini, Old Fashioned, Boulevardier, Vieux Carré):
+For all stirred cocktails (Negroni, Manhattan, Martini, Old Fashioned, Boulevardier):
 - ALWAYS use mixing glass (szklanica barmańska) for preparation
 - NEVER build directly in serving glass
 - Instructions must include: fill mixing glass → add ingredients → stir → strain to serving glass
-- Polish: "Napełnij szklanicę barmańską lodem" → "Dodaj składniki" → "Mieszaj łyżką barmańską" → "Przecedź do szklanki"
 
 INGREDIENTS FORMATTING:
 - Liquids (alcohol, juices, syrups): exact ml measurements
-- Ice: NEVER use ml, use descriptive amounts:
-  - Polish: "garść", "do pełna", "kilka kostek", "1 duża kostka"
-  - English: "handful", "fill", "few cubes", "1 large cube"
-- Herbs (mint, basil): 
-  - Polish: "10-12 listków", "gałązka"
-  - English: "10-12 leaves", "sprig"
-- Garnish items: "1 plasterek", "skórka", "1 slice", "peel"
+- Herbs (mint, basil): "10-12 listków", "gałązka" (PL) or "10-12 leaves", "sprig" (EN)
+- Garnish items: described in garnish field, not ingredients
+- NO ICE in ingredients - only in instructions!
 
 INSTRUCTIONS LENGTH:
 - Simple drinks (Mojito, Cuba Libre, Gin & Tonic): 4-5 steps
@@ -59,8 +58,7 @@ OUTPUT FORMAT (EXACT):
   "category": "classic/modern/tiki/sour",
   "history": "[2-3 sentences with REAL dates, places, and creator names]",
   "ingredients": [
-    {"name": "[ingredient]", "amount": "[number or description]", "unit": "[ml/dash/listków/etc or empty for descriptive]"},
-    {"name": "[ingredient]", "amount": "[number or description]", "unit": "[ml/dash/listków/etc or empty for descriptive]"}
+    {"name": "[ingredient]", "amount": "[number]", "unit": "[ml/dash/listków/etc]"}
   ],
   "glassType": "[glass type - SHORT name]",
   "method": "shaken/stirred/built/blended",
@@ -69,8 +67,7 @@ OUTPUT FORMAT (EXACT):
     "[Professional step 2]",
     "[Professional step 3]",
     "[Professional step 4]",
-    "[Professional step 5]",
-    "[Professional step 6 if needed]"
+    "[Professional step 5]"
   ],
   "garnish": "[Professional garnish description]",
   "ice": "[Type: kostki/kruszony/duża kostka/brak OR cubed/crushed/large cube/none]",
@@ -84,7 +81,7 @@ OUTPUT FORMAT (EXACT):
   "tags": ["tag1", "tag2"]
 }
 
-EXAMPLE - NEGRONI IN POLISH (STIRRED IN MIXING GLASS):
+EXAMPLE - NEGRONI IN POLISH (NO ICE IN INGREDIENTS):
 {
   "name": "Negroni",
   "nameEn": "Negroni",
@@ -93,8 +90,7 @@ EXAMPLE - NEGRONI IN POLISH (STIRRED IN MIXING GLASS):
   "ingredients": [
     {"name": "gin", "amount": "30", "unit": "ml"},
     {"name": "Campari", "amount": "30", "unit": "ml"},
-    {"name": "słodki wermut", "amount": "30", "unit": "ml"},
-    {"name": "kostki lodu", "amount": "kilka dużych", "unit": ""}
+    {"name": "słodki wermut", "amount": "30", "unit": "ml"}
   ],
   "glassType": "rocks",
   "method": "stirred",
@@ -146,9 +142,9 @@ KRYTYCZNE WYMAGANIA:
 - name: DOKŁADNIE "${finalCocktailName}" (nie zmieniaj nazwy!)
 - Wszystkie teksty po polsku (oprócz method)
 - method: zawsze po angielsku (shaken/stirred/built/blended)
-- Dla koktajli "stirred" (Negroni, Manhattan, Old Fashioned, Martini): ZAWSZE używaj "szklanicy barmańskiej", NIGDY nie buduj bezpośrednio w szkle
+- NIGDY nie dodawaj lodu do listy składników - wspominaj o nim TYLKO w instrukcjach
+- Dla koktajli "stirred" (Negroni, Manhattan, Old Fashioned, Martini): ZAWSZE używaj "szklanicy barmańskiej"
 - mixing glass = "szklanica barmańska" (NIE "szklanka mieszająca")
-- Lód: NIGDY nie używaj "ml" dla lodu - użyj "garść", "do pełna", "kilka kostek"
 - Zioła: zawsze "listków" nie "leaves" (np. "10-12 listków")
 - Woda gazowana NIE woda sodowa
 - Instrukcje: 4-5 kroków dla prostych, 6-7 dla stirred drinks
@@ -164,8 +160,8 @@ CRITICAL REQUIREMENTS:
 - name: EXACTLY "${finalCocktailName}" (do not change the name!)
 - All text in English
 - method: in English (shaken/stirred/built/blended)
-- For stirred cocktails (Negroni, Manhattan, Old Fashioned, Martini): ALWAYS use mixing glass, NEVER build directly in serving glass
-- Ice: NEVER use "ml" for ice - use "handful", "fill", "few cubes"
+- NEVER include ice in ingredients list - mention it ONLY in instructions
+- For stirred cocktails (Negroni, Manhattan, Old Fashioned, Martini): ALWAYS use mixing glass
 - Herbs: use "leaves" with number (e.g. "10-12 leaves")
 - Instructions: 4-5 steps for simple drinks, 6-7 for stirred drinks
 - servingTemp: number only (e.g. 5)
@@ -219,13 +215,15 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
       recipe.prepTime = recipe.prepTime || 5;
       recipe.difficulty = recipe.difficulty || "medium";
       
-      // Ensure proper formatting
+      // Ensure proper formatting and remove ice from ingredients
       if (recipe.ingredients) {
-        recipe.ingredients = recipe.ingredients.map(ing => ({
-          name: ing.name,
-          amount: String(ing.amount),
-          unit: ing.unit || ''
-        }));
+        recipe.ingredients = recipe.ingredients
+          .filter(ing => !ing.name.toLowerCase().includes('lód') && !ing.name.toLowerCase().includes('ice'))
+          .map(ing => ({
+            name: ing.name,
+            amount: String(ing.amount),
+            unit: ing.unit || ''
+          }));
       }
       
     } catch (parseError) {
@@ -244,15 +242,14 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
               { name: "syrop cukrowy", amount: "20", unit: "ml" },
               { name: "sok z limonki", amount: "30", unit: "ml" },
               { name: "biały rum", amount: "50", unit: "ml" },
-              { name: "woda gazowana", amount: "do pełna", unit: "" },
-              { name: "kruszony lód", amount: "do pełna", unit: "" }
+              { name: "woda gazowana", amount: "do pełna", unit: "" }
             ],
             glassType: "highball",
             method: "built",
             instructions: [
               "W szkle highball delikatnie ugniataj miętę z syropem cukrowym",
               "Dodaj sok z limonki i biały rum",
-              "Wypełnij szklankę kruszonym lodem",
+              "Wypełnij szklankę kruszonym lodem do góry",
               "Dolej wodę gazowaną i delikatnie wymieszaj",
               "Udekoruj gałązką mięty i ćwiartką limonki"
             ],
@@ -277,15 +274,14 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
               { name: "simple syrup", amount: "20", unit: "ml" },
               { name: "lime juice", amount: "30", unit: "ml" },
               { name: "white rum", amount: "50", unit: "ml" },
-              { name: "soda water", amount: "top up", unit: "" },
-              { name: "crushed ice", amount: "fill", unit: "" }
+              { name: "soda water", amount: "top up", unit: "" }
             ],
             glassType: "highball",
             method: "built",
             instructions: [
               "In highball glass gently muddle mint with simple syrup",
               "Add lime juice and white rum",
-              "Fill glass with crushed ice",
+              "Fill glass with crushed ice to the top",
               "Top with soda water and stir gently",
               "Garnish with mint sprig and lime wedge"
             ],
@@ -319,7 +315,7 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
               "Schłódź kieliszek coupe w zamrażarce",
               "Natrzyj połowę rantu kieliszka limonką i oprósz solą",
               "Do shakera dodaj tequilę, Cointreau i sok z limonki",
-              "Wypełnij shaker lodem i wstrząsaj energicznie 12-15 sekund",
+              "Wypełnij shaker kostkami lodu i wstrząsaj energicznie 12-15 sekund",
               "Przecedź do schłodzonego kieliszka"
             ],
             garnish: "kółko limonki na rancie",
@@ -343,8 +339,7 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
             ingredients: [
               { name: "gin", amount: "30", unit: "ml" },
               { name: "Campari", amount: "30", unit: "ml" },
-              { name: "słodki wermut", amount: "30", unit: "ml" },
-              { name: "kostki lodu", amount: "kilka dużych", unit: "" }
+              { name: "słodki wermut", amount: "30", unit: "ml" }
             ],
             glassType: "rocks",
             method: "stirred",
@@ -376,8 +371,7 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
             ingredients: [
               { name: "gin", amount: "30", unit: "ml" },
               { name: "Campari", amount: "30", unit: "ml" },
-              { name: "sweet vermouth", amount: "30", unit: "ml" },
-              { name: "ice cubes", amount: "several large", unit: "" }
+              { name: "sweet vermouth", amount: "30", unit: "ml" }
             ],
             glassType: "rocks",
             method: "stirred",
@@ -401,78 +395,6 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
             proTip: "Use a mixing glass for better chilling and dilution - the drink should be ice cold",
             tags: ["classic", "bitter", "stirred"]
           }
-        },
-        'old fashioned': {
-          pl: {
-            name: "Old Fashioned",
-            nameEn: "Old Fashioned",
-            category: "classic",
-            history: "Old Fashioned powstał w 1880 roku w Pendennis Club w Louisville, Kentucky. Jest uważany za jeden z pierwszych koktajli w historii, a jego nazwa oznacza 'staromodny'.",
-            ingredients: [
-              { name: "bourbon lub rye whiskey", amount: "60", unit: "ml" },
-              { name: "syrop cukrowy demerara", amount: "10", unit: "ml" },
-              { name: "Angostura bitters", amount: "2", unit: "dash" },
-              { name: "Orange bitters", amount: "1", unit: "dash" },
-              { name: "kostki lodu", amount: "kilka", unit: "" },
-              { name: "duża kostka lodu", amount: "1", unit: "" }
-            ],
-            glassType: "rocks",
-            method: "stirred",
-            instructions: [
-              "Do szklanicy barmańskiej dodaj syrop demerara i oba rodzaje bittersów",
-              "Dodaj kilka kostek lodu i mieszaj przez 10 sekund",
-              "Dodaj 60ml whiskey i dolej więcej lodu",
-              "Mieszaj łyżką barmańską przez 30-40 sekund",
-              "Do szklanki rocks włóż jedną dużą kostkę lodu lub kulę lodową",
-              "Przecedź zawartość szklanicy barmańskiej do szklanki rocks",
-              "Wyciśnij olejki ze skórki pomarańczy nad powierzchnią drinka"
-            ],
-            garnish: "skórka pomarańczy i koktajlowa wisienka",
-            ice: "duża kostka",
-            servingTemp: "8",
-            abv: 35,
-            prepTime: 5,
-            difficulty: "medium",
-            flavor: "Bogaty, słodko-gorzki, dębowy",
-            occasion: "Po kolacji, wieczór",
-            proTip: "Użyj dużej kostki lodu lub kuli lodowej - wolniej się topi i mniej rozwadnia drinka",
-            tags: ["classic", "whiskey", "stirred"]
-          },
-          en: {
-            name: "Old Fashioned",
-            nameEn: "Old Fashioned",
-            category: "classic",
-            history: "Old Fashioned was created in 1880 at the Pendennis Club in Louisville, Kentucky. It's considered one of the first cocktails in history.",
-            ingredients: [
-              { name: "bourbon or rye whiskey", amount: "60", unit: "ml" },
-              { name: "demerara syrup", amount: "10", unit: "ml" },
-              { name: "Angostura bitters", amount: "2", unit: "dash" },
-              { name: "Orange bitters", amount: "1", unit: "dash" },
-              { name: "ice cubes", amount: "several", unit: "" },
-              { name: "large ice cube", amount: "1", unit: "" }
-            ],
-            glassType: "rocks",
-            method: "stirred",
-            instructions: [
-              "Add demerara syrup and both bitters to mixing glass",
-              "Add a few ice cubes and stir for 10 seconds",
-              "Add 60ml whiskey and more ice",
-              "Stir with bar spoon for 30-40 seconds",
-              "Place one large ice cube or sphere in rocks glass",
-              "Strain contents of mixing glass into rocks glass",
-              "Express orange oils over the drink surface"
-            ],
-            garnish: "orange peel and cocktail cherry",
-            ice: "large cube",
-            servingTemp: "8",
-            abv: 35,
-            prepTime: 5,
-            difficulty: "medium",
-            flavor: "Rich, bittersweet, oaky",
-            occasion: "After dinner, evening",
-            proTip: "Use a large ice cube or sphere - it melts slower and doesn't dilute the drink",
-            tags: ["classic", "whiskey", "stirred"]
-          }
         }
       };
       
@@ -495,8 +417,7 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
             : `${finalCocktailName} is a classic cocktail with a rich history.`,
           ingredients: [
             { name: language === 'pl' ? "Główny alkohol" : "Base spirit", amount: "60", unit: "ml" },
-            { name: language === 'pl' ? "Modyfikator" : "Modifier", amount: "30", unit: "ml" },
-            { name: language === 'pl' ? "kostki lodu" : "ice cubes", amount: language === 'pl' ? "kilka" : "few", unit: "" }
+            { name: language === 'pl' ? "Modyfikator" : "Modifier", amount: "30", unit: "ml" }
           ],
           glassType: "rocks",
           method: "stirred",
