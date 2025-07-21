@@ -4,91 +4,109 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const RECIPE_SYSTEM_PROMPT = `Jesteś światowej klasy head bartenderem z 20-letnim doświadczeniem w najlepszych barach świata (Death & Co, Employees Only, The Savoy). Znasz każdy klasyczny koktajl według standardów IBA (International Bartenders Association) oraz współczesne wariacje. Tworzysz TYLKO sprawdzone, autentyczne przepisy używane w profesjonalnych barach.
+const RECIPE_SYSTEM_PROMPT = `Jesteś światowej klasy head bartenderem z 20-letnim doświadczeniem w najlepszych barach świata. Tworzysz WYŁĄCZNIE sprawdzone, autentyczne przepisy według standardów IBA (International Bartenders Association) oraz uznanych książek barmanskich.
 
-ABSOLUTNE ZASADY:
-1. Zwracaj TYLKO poprawny JSON - bez markdown, bez bloków kodu
-2. CAŁY tekst musi być w języku określonym w żądaniu (pl/en)
-3. Używaj PRAWDZIWYCH faktów historycznych z dokładnymi datami, miejscami i nazwiskami
-4. Podawaj DOKŁADNE proporcje według standardów IBA lub uznanych książek barmanskich
-5. Dla klasycznych koktajli MUSISZ używać sprawdzonych receptur (np. Negroni ZAWSZE 1:1:1)
-6. method: ZAWSZE po angielsku ("shaken", "stirred", "built", "blended")
-7. BEZ EMOJI - używaj czystego tekstu
-8. servingTemp: zwracaj TYLKO LICZBĘ bez °C
-9. abv: zwracaj TYLKO LICZBĘ bez % lub ~
-10. NIGDY nie dodawaj lodu do listy składników
+ABSOLUTNE ZASADY RECEPTUR:
 
-KLASYCZNE RECEPTURY (OBOWIĄZKOWE PROPORCJE):
-- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (1:1:1)
-- Margarita: tequila 50ml, Cointreau 30ml, lime juice 20ml
-- Old Fashioned: whiskey 60ml, demerara syrup 10ml, Angostura bitters 2 dash, Orange bitters 1 dash
-- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura bitters 2 dash
-- Martini: gin 60ml, dry vermouth 10ml (6:1)
-- Daiquiri: white rum 60ml, lime juice 25ml, simple syrup 15ml
-- Whiskey Sour: whiskey 60ml, lemon juice 25ml, simple syrup 20ml, egg white (optional)
-- Mojito: white rum 50ml, lime juice 30ml, simple syrup 20ml, mint 10-12 leaves, soda water top
-- Mai Tai: aged rum 30ml, rhum agricole 30ml, Curaçao 15ml, orgeat 15ml, lime juice 30ml
+KLASYCZNE KOKTAJLE IBA - OBOWIĄZKOWE PROPORCJE:
+- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (ZAWSZE 1:1:1)
+- Old Fashioned: bourbon/rye 60ml, cukier trzcinowy 1 kostka, Angostura 2 dash, orange bitters 1 dash
+- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash
+- Martini: gin 60ml, dry vermouth 10ml (ratio 6:1)
+- Margarita: tequila blanco 50ml, Cointreau/triple sec 30ml, fresh lime juice 20ml
+- Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml
+- Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional)
+- Mojito: white rum 50ml, fresh lime juice 30ml, cukier trzcinowy 2 łyżeczki, fresh mint 10-12 leaves, soda top
+- Mai Tai (Trader Vic): aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml
 - Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml
+- Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml (ratio 2:3:1)
+- Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml
+- Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash
+- Boulevardier: rye/bourbon 30ml, Campari 30ml, sweet vermouth 30ml (1:1:1)
+- Aviation: gin 60ml, maraschino 15ml, fresh lemon juice 25ml, crème de violette 5ml
+- Tom Collins: gin 50ml, fresh lemon juice 25ml, simple syrup 15ml, soda top
+- French 75: gin 30ml, fresh lemon juice 15ml, simple syrup 10ml, champagne 60ml
+- Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml
+- Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml
+- Paloma: tequila 50ml, fresh grapefruit juice 60ml, fresh lime juice 10ml, soda top
 
-ZASADY DLA JĘZYKA POLSKIEGO:
-- mixing glass → "szklanica barmańska" (NIE "szklanka mieszająca")
-- bar spoon → "łyżka barmańska"
-- soda water → "woda gazowana" (NIGDY "woda sodowa")
-- fresh mint → "świeża mięta"
-- simple syrup → "syrop cukrowy"
-- egg white → "białko jaja"
-- Dla koktajli podawanych straight up: ice = "brak"
+ZASADY TECHNICZNE:
+1. STIRRED drinks (Manhattan, Negroni, Martini, Old Fashioned):
+   - ZAWSZE w mixing glass/szklanicy barmańskiej
+   - Mieszać 30-40 sekund dla właściwego schłodzenia
+   - Przecedzić do schłodzonej szklanki
 
-ZASADY DLA STIRRED DRINKS:
-Wszystkie koktajle mieszane (Negroni, Manhattan, Martini, Old Fashioned, Boulevardier):
-- ZAWSZE używaj szklanicy barmańskiej do przygotowania
-- NIGDY nie buduj bezpośrednio w szklance
-- Instrukcje: napełnij szklanicę → dodaj składniki → mieszaj → przecedź
+2. SHAKEN drinks (Margarita, Daiquiri, Sours):
+   - Mocno wstrząsać 12-15 sekund
+   - Double strain dla drinks z owocami/ziołami
 
-FORMATOWANIE SKŁADNIKÓW:
-- Płyny: dokładne miary w ml
-- Lód: NIGDY w składnikach, tylko w instrukcjach
-- Zioła: "10-12 listków", "gałązka"
-- Bittersy: "dash" lub "krople"
+3. BUILT drinks (Mojito, Cuba Libre):
+   - Budować bezpośrednio w szkle docelowym
+   - Muddlować delikatnie (nie niszczyć liści mięty)
 
-DŁUGOŚĆ INSTRUKCJI:
-- Proste drinki (Mojito, Gin & Tonic): 4-5 kroków
-- Drinki mieszane (Negroni, Manhattan): 6-7 kroków
-- Złożone drinki (Ramos Gin Fizz): 7-10 kroków
+4. Szkło:
+   - rocks = dla Old Fashioned, Negroni on the rocks
+   - coupe = dla Daiquiri, Margarita, Aviation
+   - highball = dla Mojito, Tom Collins, Cuba Libre
+   - martini = dla Martini, Espresso Martini
+   - collins = dla Tom Collins, Paloma
+   - flute = dla French 75, champagne cocktails
+   - nick & nora = dla klasycznych stirred drinks
+   - copper mug = dla Moscow Mule
 
-FORMAT WYJŚCIOWY (DOKŁADNY):
+5. Składniki:
+   - cukier trzcinowy (kostka/łyżeczki) zamiast syropu demerara
+   - Simple syrup = syrop cukrowy (1:1)
+   - Rich syrup = gęsty syrop cukrowy (2:1)
+   - Honey syrup = syrop miodowy
+   - Fresh = świeży (zawsze świeżo wyciskane soki)
+   - "dash" = kreska/dash (ok. 1ml)
+   - "bar spoon" = łyżeczka barmańska (5ml)
+
+FORMATOWANIE:
+- Wszystkie teksty w języku określonym w request (pl/en)
+- method: ZAWSZE po angielsku (shaken/stirred/built/thrown/rolled)
+- BEZ emoji, markdown, "~", "°C", "%"
+- Tylko składniki, instrukcje i podstawowe info
+
+DLA JĘZYKA POLSKIEGO:
+- mixing glass = "szklanica barmańska" (NIE "szklanka mieszająca")
+- bar spoon = "łyżka barmańska"
+- muddler = "tłuczek barmański"
+- jigger = "miarka barmańska"
+- strainer = "sitko barmańskie"
+- hawthorne strainer = "sitko sprężynowe"
+- julep strainer = "sitko julep"
+- fine strainer = "siteczko"
+- garnish = "dekoracja"
+- rim = "brzeg szkła"
+- float = "warstwa na wierzchu"
+
+INSTRUKCJE:
+- 5-7 kroków dla większości drinków
+- Precyzyjne i profesjonalne
+- Dla Old Fashioned: muddling cukru z bittersami
+- Dla Mojito: delikatne muddling mięty
+- Dla stirred: dokładny czas mieszania
+
+JSON FORMAT (UPROSZCZONY):
 {
-  "name": "[Nazwa koktajlu w języku żądania]",
-  "nameEn": "[Nazwa angielska]",
-  "category": "classic/modern/tiki/sour",
-  "history": "[2-3 zdania z PRAWDZIWYMI datami, miejscami i twórcami]",
+  "name": "[Nazwa w języku request]",
+  "nameEn": "[English name]",
+  "category": "classic/modern/tiki/sour/highball",
+  "history": "[2-3 zdania prawdziwej historii z datami]",
   "ingredients": [
-    {"name": "[składnik]", "amount": "[liczba]", "unit": "[ml/dash/listków/etc]"}
+    {"name": "[składnik]", "amount": "[liczba]", "unit": "ml/dash/kostka/łyżeczka/listki"}
   ],
-  "glassType": "[typ szkła - KRÓTKA nazwa]",
-  "method": "shaken/stirred/built/blended",
-  "instructions": [
-    "[Profesjonalny krok 1]",
-    "[Profesjonalny krok 2]",
-    "[Profesjonalny krok 3]",
-    "[Profesjonalny krok 4]",
-    "[Profesjonalny krok 5]"
-  ],
-  "garnish": "[Profesjonalna dekoracja]",
-  "ice": "[Typ: kostki/kruszony/duża kostka/brak]",
-  "servingTemp": "5",
-  "abv": 25,
-  "prepTime": 5,
-  "difficulty": "easy/medium/hard",
-  "flavor": "[Profil smakowy]",
-  "occasion": "[Kiedy serwować]",
-  "proTip": "[Profesjonalna porada barmana]",
-  "tags": ["tag1", "tag2"]
+  "glassType": "rocks/coupe/highball/martini/collins/flute",
+  "method": "shaken/stirred/built/thrown/rolled",
+  "instructions": ["krok 1", "krok 2", "..."],
+  "garnish": "[dekoracja]",
+  "ice": "kostki/kruszony/duża kostka/brak"
 }`;
 
 module.exports = async (req, res) => {
   console.log('🍹 Recipe generator endpoint called');
-  console.log('📥 Full request body:', req.body);
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -107,47 +125,31 @@ module.exports = async (req, res) => {
     let userPrompt;
     
     if (language === 'pl') {
-      userPrompt = `Jako ekspert barmański, stwórz DOKŁADNY przepis na koktajl "${finalCocktailName}" według standardów IBA lub uznanych książek barmanskich.
-      
-KRYTYCZNE WYMAGANIA:
-- name: DOKŁADNIE "${finalCocktailName}" (zachowaj oryginalną pisownię)
-- Jeśli to klasyczny koktajl, użyj OFICJALNEJ receptury IBA
-- Wszystkie teksty po polsku (oprócz method i nazw własnych alkoholi)
-- method: ZAWSZE po angielsku (shaken/stirred/built/blended)
-- NIGDY nie dodawaj lodu do składników
-- Dla stirred drinks: ZAWSZE używaj "szklanicy barmańskiej"
-- Instrukcje szczegółowe z technikami i czasami
-- servingTemp: tylko liczba
-- abv: tylko liczba
-- Prawdziwa historia z faktami
+      userPrompt = `Stwórz DOKŁADNY przepis na koktajl "${finalCocktailName}" ściśle według standardów IBA.
 
-PRZYKŁADY PRAWIDŁOWYCH RECEPTUR:
-- Old Fashioned: bourbon 60ml (NIE 50ml!), syrop demerara 10ml, Angostura 2 dash, Orange bitters 1 dash
-- Negroni: gin 30ml, Campari 30ml, słodki wermut 30ml (ZAWSZE 1:1:1)
-- Margarita: tequila 50ml, Cointreau 30ml, sok z limonki 20ml
+KRYTYCZNE:
+- Jeśli to klasyk IBA, użyj DOKŁADNIE oficjalnych proporcji
+- Negroni MUSI być 30ml:30ml:30ml
+- Old Fashioned MUSI mieć 60ml whiskey + 1 kostka cukru trzcinowego
+- Teksty po polsku (oprócz method i nazw alkoholi)
+- Lód tylko w instrukcjach, NIE w składnikach
+- Stirred drinks ZAWSZE w szklanicy barmańskiej
+- Używaj "cukier trzcinowy" zamiast "syrop demerara"
 
-${ingredients.length > 0 ? `Użyj tych składników jeśli pasują: ${ingredients.join(', ')}` : ''}`;
+ZWRÓĆ CZYSTY JSON, BEZ MARKDOWN!`;
     } else {
-      userPrompt = `As an expert bartender, create the EXACT recipe for "${finalCocktailName}" cocktail according to IBA standards or recognized bartending books.
-      
-CRITICAL REQUIREMENTS:
-- name: EXACTLY "${finalCocktailName}" (keep original spelling)
-- If it's a classic cocktail, use OFFICIAL IBA recipe
+      userPrompt = `Create EXACT recipe for "${finalCocktailName}" cocktail following IBA standards.
+
+CRITICAL:
+- If IBA classic, use EXACT official proportions
+- Negroni MUST be 30ml:30ml:30ml
+- Old Fashioned MUST have 60ml whiskey + 1 sugar cube
 - All text in English
-- method: in English (shaken/stirred/built/blended)
-- NEVER include ice in ingredients list
-- For stirred drinks: ALWAYS use mixing glass
-- Detailed instructions with techniques and timing
-- servingTemp: number only
-- abv: number only
-- Real history with facts
+- Ice only in instructions, NOT in ingredients
+- Stirred drinks ALWAYS in mixing glass
+- Use "sugar cube" instead of "demerara syrup"
 
-EXAMPLES OF CORRECT RECIPES:
-- Old Fashioned: bourbon 60ml (NOT 50ml!), demerara syrup 10ml, Angostura 2 dash, Orange bitters 1 dash
-- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (ALWAYS 1:1:1)
-- Margarita: tequila 50ml, Cointreau 30ml, lime juice 20ml
-
-${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.join(', ')}` : ''}`;
+RETURN PURE JSON, NO MARKDOWN!`;
     }
 
     const completion = await openai.chat.completions.create({
@@ -162,64 +164,87 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
           content: userPrompt
         }
       ],
-      temperature: 0.2, // Niższa temperatura dla bardziej konsystentnych wyników
-      max_tokens: 1500
+      temperature: 0.1,
+      max_tokens: 1000
     });
 
     const aiResponse = completion.choices[0].message.content;
-    console.log('🤖 AI Response received:', aiResponse);
+    console.log('🤖 AI Response received');
     
     // Parse response
     let recipe;
     try {
-      const cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+      const cleanedResponse = aiResponse
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/gi, '')
+        .replace(/^[^{]*/, '')
+        .replace(/[^}]*$/, '')
+        .trim();
+        
       recipe = JSON.parse(cleanedResponse);
       
-      // Clean up data formatting
-      if (recipe.servingTemp) {
-        recipe.servingTemp = String(recipe.servingTemp).replace(/[°C]/g, '').trim();
-      }
-      if (recipe.abv) {
-        recipe.abv = Number(String(recipe.abv).replace(/[~%]/g, '').trim());
+      // Remove ice from ingredients if present
+      if (recipe.ingredients) {
+        recipe.ingredients = recipe.ingredients.filter(ing => 
+          !ing.name.toLowerCase().includes('lód') && 
+          !ing.name.toLowerCase().includes('ice') &&
+          !ing.name.toLowerCase().includes('led')
+        );
       }
       
-      // Ensure name matches request
+      // Validate classic cocktails
+      const nameLower = finalCocktailName.toLowerCase();
+      
+      // Fix Negroni
+      if (nameLower.includes('negroni') && recipe.ingredients.length >= 3) {
+        recipe.ingredients[0].amount = "30";
+        recipe.ingredients[1].amount = "30";
+        recipe.ingredients[2].amount = "30";
+      }
+      
+      // Fix Old Fashioned
+      if (nameLower.includes('old fashioned')) {
+        const whiskey = recipe.ingredients.find(i => 
+          i.name.toLowerCase().includes('whiskey') || 
+          i.name.toLowerCase().includes('bourbon') ||
+          i.name.toLowerCase().includes('rye')
+        );
+        if (whiskey) whiskey.amount = "60";
+        
+        const sugar = recipe.ingredients.find(i => 
+          i.name.toLowerCase().includes('cukier') || 
+          i.name.toLowerCase().includes('sugar')
+        );
+        if (sugar) {
+          sugar.amount = "1";
+          sugar.unit = language === 'pl' ? "kostka" : "cube";
+        }
+      }
+      
+      // Ensure required fields
       recipe.name = recipe.name || finalCocktailName;
       recipe.nameEn = recipe.nameEn || finalCocktailName;
-      
-      // Add default values if missing
-      recipe.servingTemp = recipe.servingTemp || "5";
+      recipe.category = recipe.category || "classic";
+      recipe.method = recipe.method || "stirred";
+      recipe.glassType = recipe.glassType || "rocks";
       recipe.ice = recipe.ice || (language === 'pl' ? "kostki" : "cubed");
-      recipe.abv = recipe.abv || 20;
-      recipe.prepTime = recipe.prepTime || 5;
-      recipe.difficulty = recipe.difficulty || "medium";
       
-      // Ensure proper formatting and remove ice from ingredients
-      if (recipe.ingredients) {
-        recipe.ingredients = recipe.ingredients
-          .filter(ing => !ing.name.toLowerCase().includes('lód') && !ing.name.toLowerCase().includes('ice'))
-          .map(ing => ({
-            name: ing.name,
-            amount: String(ing.amount),
-            unit: ing.unit || ''
-          }));
-      }
-      
-      // Validate classic cocktail proportions
-      const cocktailNameLower = finalCocktailName.toLowerCase();
-      if (cocktailNameLower.includes('old fashioned') && recipe.ingredients[0]?.amount === "50") {
-        recipe.ingredients[0].amount = "60"; // Fix bourbon amount
-      }
+      // Default values for backwards compatibility
+      recipe.difficulty = "medium";
+      recipe.prepTime = 5;
+      recipe.abv = 25;
+      recipe.servingTemp = "5";
+      recipe.flavor = "";
+      recipe.occasion = "";
+      recipe.proTip = "";
+      recipe.tags = [];
       
     } catch (parseError) {
       console.error('Parse error:', parseError);
-      console.error('Raw AI response:', aiResponse);
-      
-      // Return error instead of fallback
+      console.error('Raw response:', aiResponse);
       return res.status(500).json({ 
         error: 'Failed to parse recipe',
-        details: 'AI response was not valid JSON',
-        rawResponse: aiResponse
+        details: 'Invalid JSON response'
       });
     }
 
@@ -230,13 +255,7 @@ ${ingredients.length > 0 ? `Use these ingredients if appropriate: ${ingredients.
       createdAt: new Date().toISOString()
     };
 
-    console.log('✅ Sending recipe for:', response.name);
-    console.log('📊 Recipe details:', {
-      name: response.name,
-      method: response.method,
-      ingredients: response.ingredients,
-      abv: response.abv
-    });
+    console.log('✅ Recipe created:', response.name);
     
     res.status(200).json(response);
     
