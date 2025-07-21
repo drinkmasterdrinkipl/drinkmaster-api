@@ -4,100 +4,87 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const RECIPE_SYSTEM_PROMPT = `Jesteś światowej klasy head bartenderem z 20-letnim doświadczeniem. Tworzysz TYLKO sprawdzone, kompletne przepisy według standardów IBA.
+const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years of experience. Create ONLY authentic, complete recipes according to IBA standards.
 
-ABSOLUTNE ZASADY:
+ABSOLUTE RULES:
 
-1. NIGDY nie pomijaj kluczowych składników (szczególnie soków cytrusowych!)
-2. ZAWSZE podawaj WSZYSTKIE składniki potrzebne do koktajlu
-3. Instrukcje muszą być KOMPLETNE - nie urywaj zdań
+1. NEVER skip key ingredients (especially citrus juices!)
+2. ALWAYS provide ALL ingredients needed for the cocktail
+3. Instructions must be COMPLETE - don't cut off sentences
+4. ALL text in the requested language (pl/en) except 'method' field
 
-KLASYCZNE RECEPTURY IBA (DOKŁADNE PROPORCJE):
+CLASSIC IBA RECIPES (EXACT PROPORTIONS):
 - Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (1:1:1)
-- Old Fashioned: bourbon/rye 60ml, cukier trzcinowy 1 kostka, Angostura 2 dash, Orange bitters 1 dash
+- Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash
 - Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash
 - Martini: gin 60ml, dry vermouth 10ml
 - Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml
 - Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml
 - Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional)
 - Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional)
-- Mojito: white rum 50ml, fresh lime juice 30ml, cukier trzcinowy 2 łyżeczki, fresh mint 10-12 leaves, soda top
+- Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda top
 - Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml
 - Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml (shot on side)
 - Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml
 - Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml (2:3:1)
 - Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml
 - Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml
-- Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash
-- Bee's Knees: gin 60ml, fresh lemon juice 25ml, honey syrup 20ml
-- Aviation: gin 60ml, maraschino 15ml, fresh lemon juice 25ml, crème de violette 5ml
-- Tom Collins: gin 50ml, fresh lemon juice 25ml, simple syrup 15ml, soda top
 - Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml
-- Paloma: tequila 50ml, fresh grapefruit juice 60ml, fresh lime juice 10ml, soda top
 
-TŁUMACZENIA OBOWIĄZKOWE (język polski):
+LANGUAGE-SPECIFIC TRANSLATIONS:
+
+For POLISH (pl):
 - mixing glass = "szklanica barmańska"
 - bar spoon = "łyżka barmańska"
-- muddler = "tłuczek barmański"
-- jigger = "miarka barmańska"
-- strainer = "sitko barmańskie"
-- hawthorne strainer = "sitko sprężynowe"
-- wine glass = "kieliszek do wina"
-- copper mug = "kubek miedziany"
-- shot glass = "kieliszek shot"
-- rocks glass = "szklanka rocks"
-- highball glass = "szklanka highball"
-- coupe glass = "kieliszek coupe"
-- martini glass = "kieliszek martini"
-- collins glass = "szklanka collins"
-- flute glass = "kieliszek flute"
 - fresh lime juice = "świeżo wyciśnięty sok z limonki"
 - fresh lemon juice = "świeżo wyciśnięty sok z cytryny"
-- fresh grapefruit juice = "świeżo wyciśnięty sok z grejpfruta"
 - simple syrup = "syrop cukrowy"
-- honey syrup = "syrop miodowy"
 - egg white = "białko jaja"
 - soda water = "woda gazowana"
 - ginger beer = "piwo imbirowe"
-- garnish = "dekoracja"
-- dash = "dash"
 - sugar cube = "kostka cukru"
-- brown sugar = "cukier trzcinowy"
+- ice types: kostki/kruszony/duża kostka/brak
 
-ZASADY INSTRUKCJI:
-1. Minimum 4-7 kroków dla każdego koktajlu
-2. PEŁNE zdania, bez urywania
-3. Dokładne opisy każdej czynności
-4. Dla stirred: zawsze w szklanicy barmańskiej
-5. Dla shaken: zawsze mocno wstrząsać 12-15 sekund
-6. Dla built: budować w docelowym szkle
+Glass types in Polish:
+- rocks = "szklanka rocks"
+- coupe = "kieliszek coupe"
+- highball = "szklanka highball"
+- martini = "kieliszek martini"
+- copper mug = "kubek miedziany"
+- wine glass = "kieliszek do wina"
 
-FORMATOWANIE:
-- method: ZAWSZE po angielsku (shaken/stirred/built/thrown/rolled)
-- Wszystkie inne teksty w języku określonym w request
-- BEZ emoji, markdown, znaków specjalnych
-- Tylko czyste dane
+For ENGLISH (en):
+- Use standard English bartending terms
+- ice types: cubed/crushed/large cube/none
+
+INSTRUCTION RULES:
+1. Minimum 4-7 steps for each cocktail
+2. COMPLETE sentences, no cutting off
+3. Detailed descriptions of each action
+4. For stirred: always in mixing glass
+5. For shaken: always shake hard for 12-15 seconds
+6. For built: build in serving glass
 
 JSON FORMAT:
 {
-  "name": "[nazwa w języku request]",
-  "nameEn": "[nazwa angielska]",
+  "name": "[name in request language]",
+  "nameEn": "[English name]",
   "category": "classic/modern/tiki/sour/highball",
-  "history": "[2-3 zdania prawdziwej historii]",
+  "history": "[2-3 sentences of real history in request language]",
   "ingredients": [
-    {"name": "[składnik]", "amount": "[liczba]", "unit": "ml/dash/kostka/łyżeczka/listki/sztuka"}
+    {"name": "[ingredient in request language]", "amount": "[number]", "unit": "ml/dash/cube/tsp/leaves/piece"}
   ],
-  "glassType": "[typ szkła W JĘZYKU REQUEST]",
+  "glassType": "[glass type in request language]",
   "method": "shaken/stirred/built/thrown/rolled",
   "instructions": [
-    "[KOMPLETNE zdanie - krok 1]",
-    "[KOMPLETNE zdanie - krok 2]",
-    "[KOMPLETNE zdanie - krok 3]",
-    "[KOMPLETNE zdanie - krok 4]",
-    "[KOMPLETNE zdanie - krok 5]"
+    "[COMPLETE sentence in request language - step 1]",
+    "[COMPLETE sentence in request language - step 2]",
+    "[COMPLETE sentence in request language - step 3]",
+    "[COMPLETE sentence in request language - step 4]",
+    "[COMPLETE sentence in request language - step 5]"
   ],
-  "garnish": "[dekoracja]",
-  "ice": "kostki/kruszony/duża kostka/brak"
+  "garnish": "[garnish in request language]",
+  "ice": "[ice type in request language]"
 }`;
 
 module.exports = async (req, res) => {
@@ -108,10 +95,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { drinkName, cocktailName, ingredients = [], language = 'pl' } = req.body;
+    const { drinkName, cocktailName, ingredients = [], language } = req.body;
     const finalCocktailName = drinkName || cocktailName;
+    const requestLanguage = language || 'en'; // Default to English if not specified
     
-    console.log(`📝 Generating recipe for: ${finalCocktailName} in ${language}`);
+    console.log(`📝 Generating recipe for: ${finalCocktailName}`);
+    console.log(`🌍 Language requested: ${requestLanguage}`);
+    console.log(`📦 Full request body:`, JSON.stringify(req.body));
     
     if (!finalCocktailName) {
       return res.status(400).json({ error: 'Cocktail name is required' });
@@ -119,31 +109,28 @@ module.exports = async (req, res) => {
 
     let userPrompt;
     
-    if (language === 'pl') {
-      userPrompt = `Stwórz KOMPLETNY przepis na koktajl "${finalCocktailName}" według standardów IBA.
+    if (requestLanguage === 'pl') {
+      userPrompt = `Create COMPLETE recipe for "${finalCocktailName}" cocktail.
 
-ABSOLUTNIE KRYTYCZNE:
-- WSZYSTKIE składniki (nie pomijaj soków!)
-- Moscow Mule MUSI mieć sok z limonki
-- Porn Star Martini MUSI mieć sok z limonki
-- Sour cocktails MUSZĄ mieć sok cytrynowy
-- Szkła po POLSKU (kieliszek do wina, NIE wine glass)
-- PEŁNE instrukcje bez urywania
-- Używaj polskich nazw dla szkła i składników
+CRITICAL:
+- ALL text in POLISH except 'method' field
+- ALL ingredients with Polish names (świeżo wyciśnięty sok z limonki, NOT fresh lime juice)
+- Glass types in Polish (szklanka highball, NOT highball glass)
+- Instructions in Polish
+- History in Polish
+- Ice types: kostki/kruszony/duża kostka/brak
 
-ZWRÓĆ CZYSTY JSON BEZ MARKDOWN!`;
+RETURN PURE JSON!`;
     } else {
-      userPrompt = `Create COMPLETE recipe for "${finalCocktailName}" cocktail following IBA standards.
+      userPrompt = `Create COMPLETE recipe for "${finalCocktailName}" cocktail.
 
-ABSOLUTELY CRITICAL:
-- ALL ingredients (don't skip juices!)
-- Moscow Mule MUST have lime juice
-- Porn Star Martini MUST have lime juice  
-- Sour cocktails MUST have lemon juice
-- COMPLETE instructions without cutting off
-- Use proper measurements
+CRITICAL:
+- ALL text in ENGLISH
+- Standard bartending terminology
+- Complete ingredient list with measurements
+- Ice types: cubed/crushed/large cube/none
 
-RETURN PURE JSON WITHOUT MARKDOWN!`;
+RETURN PURE JSON!`;
     }
 
     const completion = await openai.chat.completions.create({
@@ -177,7 +164,7 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
         
       recipe = JSON.parse(cleanedResponse);
       
-      // Remove ice from ingredients
+      // Remove ice from ingredients if present
       if (recipe.ingredients) {
         recipe.ingredients = recipe.ingredients.filter(ing => 
           !ing.name.toLowerCase().includes('lód') && 
@@ -186,10 +173,10 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
         );
       }
       
-      // FIX MISSING INGREDIENTS
+      // FIX MISSING INGREDIENTS for specific cocktails
       const nameLower = finalCocktailName.toLowerCase();
       
-      // Fix Moscow Mule
+      // Moscow Mule must have lime juice
       if (nameLower.includes('moscow mule')) {
         const hasLime = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lime') || 
@@ -198,15 +185,15 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
         
         if (!hasLime) {
           recipe.ingredients.splice(1, 0, {
-            name: language === 'pl' ? "świeżo wyciśnięty sok z limonki" : "fresh lime juice",
+            name: requestLanguage === 'pl' ? "świeżo wyciśnięty sok z limonki" : "fresh lime juice",
             amount: "15",
             unit: "ml"
           });
         }
       }
       
-      // Fix Vodka Sour
-      if (nameLower.includes('vodka sour')) {
+      // Sour cocktails must have lemon juice
+      if (nameLower.includes('sour')) {
         const hasLemon = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lemon') || 
           i.name.toLowerCase().includes('cytry')
@@ -214,110 +201,34 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
         
         if (!hasLemon) {
           recipe.ingredients.splice(1, 0, {
-            name: language === 'pl' ? "świeżo wyciśnięty sok z cytryny" : "fresh lemon juice",
+            name: requestLanguage === 'pl' ? "świeżo wyciśnięty sok z cytryny" : "fresh lemon juice",
             amount: "30",
             unit: "ml"
           });
         }
       }
       
-      // Fix Whiskey Sour
-      if (nameLower.includes('whiskey sour')) {
-        const hasLemon = recipe.ingredients.some(i => 
-          i.name.toLowerCase().includes('lemon') || 
-          i.name.toLowerCase().includes('cytry')
-        );
-        
-        if (!hasLemon) {
-          recipe.ingredients.splice(1, 0, {
-            name: language === 'pl' ? "świeżo wyciśnięty sok z cytryny" : "fresh lemon juice",
-            amount: "30",
-            unit: "ml"
-          });
-        }
-      }
-      
-      // Fix Porn Star Martini
-      if (nameLower.includes('porn star') || nameLower.includes('pornstar')) {
+      // Cuba Libre must have lime juice
+      if (nameLower.includes('cuba libre')) {
         const hasLime = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lime') || 
           i.name.toLowerCase().includes('limonk')
         );
         
         if (!hasLime) {
-          // Find where to insert (after vanilla syrup)
-          const vanillaIndex = recipe.ingredients.findIndex(i => 
-            i.name.toLowerCase().includes('vanilla') || 
-            i.name.toLowerCase().includes('wanili')
-          );
-          
-          recipe.ingredients.splice(vanillaIndex + 1, 0, {
-            name: language === 'pl' ? "świeżo wyciśnięty sok z limonki" : "fresh lime juice",
-            amount: "15",
+          recipe.ingredients.splice(2, 0, {
+            name: requestLanguage === 'pl' ? "świeżo wyciśnięty sok z limonki" : "fresh lime juice",
+            amount: "10",
             unit: "ml"
           });
         }
       }
       
-      // Fix classic cocktails proportions
+      // Ensure correct proportions for classics
       if (nameLower.includes('negroni') && recipe.ingredients.length >= 3) {
         recipe.ingredients[0].amount = "30";
         recipe.ingredients[1].amount = "30";
         recipe.ingredients[2].amount = "30";
-      }
-      
-      if (nameLower.includes('old fashioned')) {
-        const whiskey = recipe.ingredients.find(i => 
-          i.name.toLowerCase().includes('whiskey') || 
-          i.name.toLowerCase().includes('bourbon') ||
-          i.name.toLowerCase().includes('rye')
-        );
-        if (whiskey) whiskey.amount = "60";
-        
-        const sugar = recipe.ingredients.find(i => 
-          i.name.toLowerCase().includes('cukier') || 
-          i.name.toLowerCase().includes('sugar')
-        );
-        if (sugar) {
-          sugar.amount = "1";
-          sugar.unit = language === 'pl' ? "kostka" : "cube";
-          sugar.name = language === 'pl' ? "cukier trzcinowy" : "sugar cube";
-        }
-      }
-      
-      // Fix glass translations for Polish
-      if (language === 'pl' && recipe.glassType) {
-        const glassTranslations = {
-          'wine glass': 'kieliszek do wina',
-          'wine': 'kieliszek do wina',
-          'copper mug': 'kubek miedziany',
-          'copper': 'kubek miedziany',
-          'shot glass': 'kieliszek shot',
-          'shot': 'kieliszek shot',
-          'rocks glass': 'szklanka rocks',
-          'rocks': 'szklanka rocks',
-          'highball glass': 'szklanka highball',
-          'highball': 'szklanka highball',
-          'coupe glass': 'kieliszek coupe',
-          'coupe': 'kieliszek coupe',
-          'martini glass': 'kieliszek martini',
-          'martini': 'kieliszek martini',
-          'collins glass': 'szklanka collins',
-          'collins': 'szklanka collins',
-          'flute glass': 'kieliszek flute',
-          'flute': 'kieliszek flute',
-          'champagne flute': 'kieliszek do szampana',
-          'old fashioned glass': 'szklanka old fashioned',
-          'old fashioned': 'szklanka old fashioned',
-          'hurricane glass': 'szklanka hurricane',
-          'hurricane': 'szklanka hurricane',
-          'nick and nora': 'kieliszek nick & nora',
-          'julep cup': 'kubek julep',
-          'tiki mug': 'kubek tiki'
-        };
-        
-        const lowerGlass = recipe.glassType.toLowerCase();
-        recipe.glassType = glassTranslations[lowerGlass] || recipe.glassType;
       }
       
       // Ensure required fields
@@ -325,9 +236,9 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
       recipe.nameEn = recipe.nameEn || finalCocktailName;
       recipe.category = recipe.category || "classic";
       recipe.method = recipe.method || "stirred";
-      recipe.ice = recipe.ice || (language === 'pl' ? "kostki" : "cubed");
+      recipe.ice = recipe.ice || (requestLanguage === 'pl' ? "kostki" : "cubed");
       
-      // Ensure instructions are complete (not cut off)
+      // Ensure instructions are complete
       if (recipe.instructions && recipe.instructions.length > 0) {
         recipe.instructions = recipe.instructions.filter(inst => 
           inst && inst.length > 10 && !inst.endsWith('...')
@@ -361,6 +272,7 @@ RETURN PURE JSON WITHOUT MARKDOWN!`;
     };
 
     console.log('✅ Recipe created:', response.name);
+    console.log('🌍 Language:', requestLanguage);
     console.log('📊 Ingredients:', response.ingredients.map(i => `${i.name}: ${i.amount}${i.unit}`));
     
     res.status(200).json(response);

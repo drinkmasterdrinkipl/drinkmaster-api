@@ -10,12 +10,13 @@ CRITICAL RULES:
 1. Return ONLY valid JSON - no markdown, no code blocks
 2. ALL text must be in the language specified in request (pl/en)
 3. Provide rich, detailed descriptions (3-5 sentences)
-4. Include simple flavor characteristics in the description itself
+4. Include flavor characteristics in the description
 5. Add one interesting fact about the product
 6. Suggest only classic cocktails appropriate for the spirit type
 
-POLISH SPIRIT TYPES (use exactly these):
-- whisky (not whiskey)
+SPIRIT TYPES:
+Polish (pl):
+- whisky
 - wódka
 - gin
 - rum
@@ -28,26 +29,42 @@ POLISH SPIRIT TYPES (use exactly these):
 - piwo
 - inny
 
-OUTPUT FORMAT (EXACT):
+English (en):
+- whiskey
+- vodka
+- gin
+- rum
+- tequila
+- cognac
+- liqueur
+- brandy
+- wine
+- champagne
+- beer
+- other
+
+OUTPUT FORMAT:
 {
   "name": "[Full product name]",
   "brand": "[Brand name]", 
-  "type": "[use Polish types from above if language=pl]",
+  "type": "[spirit type in requested language]",
   "country": "[Country in requested language]",
   "alcoholContent": [number only],
-  "description": "[3-5 sentences including flavor profile. Example: 'Metaxa to grecki napój spirytusowy łączący brandy z aromatycznymi ziołami. Ma słodki, łagodny smak z nutami miodu, wanilii i suszonych owoców. Charakteryzuje się gładką, aksamitną teksturą i długim, ciepłym finiszem.']",
+  "description": "[3-5 sentences in requested language with flavor profile]",
   "cocktailSuggestions": ["[cocktail 1]", "[cocktail 2]", "[cocktail 3]"],
-  "funFact": "[One interesting fact]"
+  "funFact": "[One interesting fact in requested language]"
 }`;
 
 module.exports = async (req, res) => {
   try {
-    const { image, language = 'pl' } = req.body;
-    console.log(`Scanner request - Language: ${language}`);
+    const { image, language } = req.body;
+    const requestLanguage = language || 'en';
     
-    const userPrompt = language === 'pl' 
-      ? `Rozpoznaj alkohol. Podaj typ po polsku (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). W opisie zawrzyj charakterystykę smakową.`
-      : `Identify the alcohol. Include flavor characteristics in the description.`;
+    console.log(`🔍 Scanner request - Language: ${requestLanguage}`);
+    
+    const userPrompt = requestLanguage === 'pl' 
+      ? `Identify this alcohol bottle. ALL text must be in POLISH. Use Polish spirit types (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Include flavor characteristics in the description.`
+      : `Identify this alcohol bottle. ALL text must be in ENGLISH. Use English spirit types. Include flavor characteristics in the description.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -69,9 +86,9 @@ module.exports = async (req, res) => {
     });
 
     const aiResponse = response.choices[0].message.content;
-    console.log('Raw Scanner AI Response:', aiResponse.substring(0, 200) + '...');
+    console.log('🤖 Raw Scanner Response:', aiResponse.substring(0, 200) + '...');
     
-    // Fast parsing
+    // Clean and parse response
     let cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
     const firstBrace = cleanedResponse.indexOf('{');
     const lastBrace = cleanedResponse.lastIndexOf('}');
@@ -89,43 +106,58 @@ module.exports = async (req, res) => {
         parsedData.alcoholContent = parseFloat(parsedData.alcoholContent.replace('%', '')) || 40;
       }
       
-      // Fix cocktails based on type
+      // Fix cocktail suggestions based on type
       const cocktailMap = {
-        'brandy': ['Sidecar', 'Brandy Alexander', 'Stinger'],
-        'likier': ['B-52', 'White Russian', 'Espresso Martini'],
-        'whisky': ['Old Fashioned', 'Manhattan', 'Whiskey Sour'],
-        'wódka': ['Moscow Mule', 'Bloody Mary', 'Cosmopolitan'],
-        'gin': ['Gin & Tonic', 'Martini', 'Negroni'],
-        'rum': ['Mojito', 'Daiquiri', 'Mai Tai'],
-        'tequila': ['Margarita', 'Paloma', 'Tequila Sunrise'],
-        'koniak': ['Sidecar', 'French 75', 'Sazerac'],
-        'wino': language === 'pl' ? ['Sangria', 'Kir', 'Spritz'] : ['Sangria', 'Kir', 'Spritz'],
-        'szampan': ['Mimosa', 'Bellini', 'French 75']
+        pl: {
+          'brandy': ['Sidecar', 'Brandy Alexander', 'Stinger'],
+          'likier': ['B-52', 'White Russian', 'Espresso Martini'],
+          'whisky': ['Old Fashioned', 'Manhattan', 'Whiskey Sour'],
+          'wódka': ['Moscow Mule', 'Bloody Mary', 'Cosmopolitan'],
+          'gin': ['Gin & Tonic', 'Martini', 'Negroni'],
+          'rum': ['Mojito', 'Daiquiri', 'Mai Tai'],
+          'tequila': ['Margarita', 'Paloma', 'Tequila Sunrise'],
+          'koniak': ['Sidecar', 'French 75', 'Sazerac'],
+          'wino': ['Sangria', 'Kir', 'Spritz'],
+          'szampan': ['Mimosa', 'Bellini', 'French 75']
+        },
+        en: {
+          'brandy': ['Sidecar', 'Brandy Alexander', 'Stinger'],
+          'liqueur': ['B-52', 'White Russian', 'Espresso Martini'],
+          'whiskey': ['Old Fashioned', 'Manhattan', 'Whiskey Sour'],
+          'vodka': ['Moscow Mule', 'Bloody Mary', 'Cosmopolitan'],
+          'gin': ['Gin & Tonic', 'Martini', 'Negroni'],
+          'rum': ['Mojito', 'Daiquiri', 'Mai Tai'],
+          'tequila': ['Margarita', 'Paloma', 'Tequila Sunrise'],
+          'cognac': ['Sidecar', 'French 75', 'Sazerac'],
+          'wine': ['Sangria', 'Kir', 'Spritz'],
+          'champagne': ['Mimosa', 'Bellini', 'French 75']
+        }
       };
       
-      // For Metaxa specifically
-      if (parsedData.name && parsedData.name.toLowerCase().includes('metaxa')) {
-        parsedData.cocktailSuggestions = ['Metaxa Sour', 'Metaxa Ginger', 'Metaxa Tonic'];
-      } else if (cocktailMap[parsedData.type]) {
-        parsedData.cocktailSuggestions = cocktailMap[parsedData.type];
+      // Apply cocktail suggestions if not provided or empty
+      if (!parsedData.cocktailSuggestions || parsedData.cocktailSuggestions.length === 0) {
+        const map = requestLanguage === 'pl' ? cocktailMap.pl : cocktailMap.en;
+        parsedData.cocktailSuggestions = map[parsedData.type] || 
+          (requestLanguage === 'pl' ? ['Klasyczne koktajle'] : ['Classic cocktails']);
       }
       
     } catch (e) {
       console.error('Parse error:', e);
       
+      // Fallback response
       parsedData = {
-        name: language === 'pl' ? "Nierozpoznany alkohol" : "Unrecognized alcohol",
-        brand: language === 'pl' ? "Nieznana marka" : "Unknown brand",
-        type: language === 'pl' ? "inny" : "other",
-        country: language === 'pl' ? "Nieznany" : "Unknown",
+        name: requestLanguage === 'pl' ? "Nierozpoznany alkohol" : "Unrecognized alcohol",
+        brand: requestLanguage === 'pl' ? "Nieznana marka" : "Unknown brand",
+        type: requestLanguage === 'pl' ? "inny" : "other",
+        country: requestLanguage === 'pl' ? "Nieznany" : "Unknown",
         alcoholContent: 40,
-        description: language === 'pl' 
+        description: requestLanguage === 'pl' 
           ? "Nie udało się rozpoznać produktu. Może to być rzadki lub regionalny alkohol. Spróbuj zrobić wyraźniejsze zdjęcie etykiety przy dobrym oświetleniu."
           : "Could not identify the product. This might be a rare or regional alcohol. Try taking a clearer photo with better lighting.",
-        cocktailSuggestions: language === 'pl'
+        cocktailSuggestions: requestLanguage === 'pl'
           ? ["Klasyczne koktajle"]
           : ["Classic cocktails"],
-        funFact: language === 'pl'
+        funFact: requestLanguage === 'pl'
           ? "Każdy alkohol ma swoją unikalną historię i tradycję produkcji."
           : "Every alcohol has its unique history and production tradition."
       };

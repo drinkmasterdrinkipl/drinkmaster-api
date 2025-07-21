@@ -23,45 +23,49 @@ CLASSIC RECIPES (NEVER CHANGE BASE SPIRIT):
 - Manhattan: RYE/BOURBON, sweet vermouth, bitters
 - Old Fashioned: BOURBON/RYE, sugar, bitters
 
-ICE USAGE:
-- Mojito, Mint Julep = lód kruszony (crushed ice)
-- Most cocktails = kostki lodu (ice cubes)
-- Old Fashioned = duża kostka (large cube)
+LANGUAGE-SPECIFIC TERMS:
 
-POLISH UNITS:
+Polish (pl):
+- ice = lód
+- crushed ice = lód kruszony
+- ice cubes = kostki lodu
+- large ice cube = duża kostka lodu
 - ml = ml
 - pieces = sztuki
-- leaves = listki  
+- leaves = listki
 - dashes = krople
 - tsp = łyżeczki
+
+English (en):
+- Use standard bartending terms
 
 OUTPUT FORMAT:
 {
   "cocktails": [
     {
-      "name": "Name",
+      "name": "Name in request language",
       "available": true,
-      "description": "Description",
+      "description": "Description in request language",
       "difficulty": "easy|medium|hard",
       "ingredients": [
-        {"name": "ingredient", "amount": "amount", "unit": "unit"}
+        {"name": "ingredient in request language", "amount": "amount", "unit": "unit"}
       ],
-      "instructions": ["step1", "step2"],
-      "glassType": "glass"
+      "instructions": ["step1 in request language", "step2"],
+      "glassType": "glass type in request language"
     }
   ],
   "almostPossible": {
-    "name": "Cocktail",
-    "missingIngredient": "What's missing",
-    "description": "Description",
-    "ingredients": [full ingredient list]
+    "name": "Cocktail name in request language",
+    "missingIngredient": "What's missing in request language",
+    "description": "Description in request language",
+    "ingredients": [full ingredient list in request language]
   },
   "shoppingList": [
     {
-      "ingredient": "Item",
+      "ingredient": "Item in request language",
       "unlocksCount": number,
       "priority": "high|medium|low",
-      "reason": "Why recommended",
+      "reason": "Why recommended in request language",
       "newCocktails": ["cocktail1", "cocktail2"]
     }
   ]
@@ -69,30 +73,32 @@ OUTPUT FORMAT:
 
 module.exports = async (req, res) => {
   try {
-    const { ingredients, language = 'pl' } = req.body;
-    console.log(`MyBar request - Ingredients: ${ingredients}, Language: ${language}`);
+    const { ingredients, language } = req.body;
+    const requestLanguage = language || 'en';
     
-    const userPrompt = language === 'pl'
-      ? `Mam składniki: ${ingredients}
+    console.log(`🍹 MyBar request - Ingredients: ${ingredients}`);
+    console.log(`🌍 Language: ${requestLanguage}`);
+    
+    const userPrompt = requestLanguage === 'pl'
+      ? `I have these ingredients: ${ingredients}
 
-WAŻNE:
-- Używaj dokładnie nazw składników które podałem (jeśli napisałem "whisky" nie zmieniaj na "bourbon")
-- Podaj TYLKO autentyczne, klasyczne przepisy
-- Mint Julep ZAWSZE z bourbonem, Mojito ZAWSZE z białym rumem
-- Pełne listy składników dla każdego koktajlu
-- Lód kruszony gdzie potrzebny (Mojito, Julep)
-
-Zasugeruj koktajle możliwe do zrobienia, jeden prawie możliwy i strategiczny zakup.`
-      : `I have ingredients: ${ingredients}
-
-IMPORTANT:
+CRITICAL:
+- ALL text must be in POLISH
+- Use Polish terms (kostki lodu, świeży sok z limonki, etc.)
 - Use exactly the ingredient names I provided
-- ONLY authentic, classic recipes
+- Only authentic classic recipes
 - Mint Julep ALWAYS with bourbon, Mojito ALWAYS with white rum
-- Complete ingredient lists for each cocktail
-- Crushed ice where appropriate
 
-Suggest available cocktails, one almost possible, and strategic purchase.`;
+Suggest available cocktails, one almost possible, and strategic purchases.`
+      : `I have these ingredients: ${ingredients}
+
+CRITICAL:
+- ALL text must be in ENGLISH
+- Use exactly the ingredient names I provided
+- Only authentic classic recipes
+- Mint Julep ALWAYS with bourbon, Mojito ALWAYS with white rum
+
+Suggest available cocktails, one almost possible, and strategic purchases.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -105,7 +111,7 @@ Suggest available cocktails, one almost possible, and strategic purchase.`;
     });
 
     const aiResponse = response.choices[0].message.content;
-    console.log('Raw MyBar AI Response:', aiResponse.substring(0, 200) + '...');
+    console.log('🤖 Raw MyBar Response:', aiResponse.substring(0, 200) + '...');
     
     // Clean response
     let cleanedResponse = aiResponse;
@@ -123,9 +129,9 @@ Suggest available cocktails, one almost possible, and strategic purchase.`;
     let suggestions;
     try {
       suggestions = JSON.parse(cleanedResponse);
-      console.log('Successfully parsed MyBar JSON');
+      console.log('✅ Successfully parsed MyBar JSON');
       
-      // Validate and fix data
+      // Validate and ensure language consistency
       if (suggestions.cocktails) {
         suggestions.cocktails = suggestions.cocktails.filter(cocktail => {
           // Ensure ingredients exist
@@ -134,92 +140,85 @@ Suggest available cocktails, one almost possible, and strategic purchase.`;
             return false;
           }
           
-          // Fix classic recipes if wrong
-          if (cocktail.name.toLowerCase().includes('julep') && 
+          // Fix classic recipes if base spirit is wrong
+          const nameLower = cocktail.name.toLowerCase();
+          
+          if (nameLower.includes('julep') && 
               cocktail.ingredients.some(i => i.name.toLowerCase().includes('rum'))) {
             console.log('Fixing Mint Julep - changing rum to bourbon');
             cocktail.ingredients.forEach(ing => {
               if (ing.name.toLowerCase().includes('rum')) {
-                ing.name = 'Bourbon';
+                ing.name = requestLanguage === 'pl' ? 'Bourbon' : 'Bourbon';
               }
             });
           }
           
-          if (cocktail.name.toLowerCase().includes('mojito') && 
+          if (nameLower.includes('mojito') && 
               cocktail.ingredients.some(i => i.name.toLowerCase().includes('whisk'))) {
             console.log('Fixing Mojito - changing whisky to white rum');
             cocktail.ingredients.forEach(ing => {
               if (ing.name.toLowerCase().includes('whisk')) {
-                ing.name = language === 'pl' ? 'Biały rum' : 'White rum';
+                ing.name = requestLanguage === 'pl' ? 'Biały rum' : 'White rum';
               }
             });
           }
           
-          // Fix ice
-          cocktail.ingredients.forEach(ing => {
-            if (ing.name.toLowerCase().includes('lód') || ing.name.toLowerCase().includes('ice')) {
-              ing.unit = "";
-              
-              if (cocktail.name.toLowerCase().includes('mojito') || 
-                  cocktail.name.toLowerCase().includes('julep')) {
-                ing.name = language === 'pl' ? 'Lód kruszony' : 'Crushed ice';
-                ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
-              } else if (cocktail.name.toLowerCase().includes('old fashioned')) {
-                ing.name = language === 'pl' ? 'Duża kostka lodu' : 'Large ice cube';
-                ing.amount = '1';
-              } else {
-                ing.name = language === 'pl' ? 'Kostki lodu' : 'Ice cubes';
-                ing.amount = language === 'pl' ? 'do pełna' : 'fill with';
-              }
-            }
-          });
-          
-          // Ensure required fields
+          // Ensure instructions exist
           cocktail.instructions = cocktail.instructions || [
-            language === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
+            requestLanguage === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
           ];
+          
+          // Ensure glass type
           cocktail.glassType = cocktail.glassType || (
-            language === 'pl' ? 'odpowiednia szklanka' : 'appropriate glass'
+            requestLanguage === 'pl' ? 'odpowiednia szklanka' : 'appropriate glass'
           );
           
           return true;
         });
       }
       
-      // Fix almostPossible
+      // Fix almostPossible if empty ingredients
       if (suggestions.almostPossible && 
           (!suggestions.almostPossible.ingredients || suggestions.almostPossible.ingredients.length === 0)) {
-        console.log('Fixing empty ingredients in almostPossible');
+        console.log('Removing almostPossible with empty ingredients');
         suggestions.almostPossible = null;
       }
       
     } catch (e) {
       console.error('MyBar parse error:', e);
       
-      // Safe fallback
+      // Fallback response
       suggestions = {
         cocktails: [{
-          name: language === 'pl' ? "Prosty drink" : "Simple drink",
+          name: requestLanguage === 'pl' ? "Prosty drink" : "Simple drink",
           available: true,
-          description: language === 'pl' 
+          description: requestLanguage === 'pl' 
             ? "Klasyczny drink z dostępnych składników"
             : "Classic drink with available ingredients",
           difficulty: "easy",
           ingredients: [
-            { name: language === 'pl' ? "Alkohol" : "Spirit", amount: "50", unit: "ml" },
-            { name: language === 'pl' ? "Kostki lodu" : "Ice cubes", amount: language === 'pl' ? "do pełna" : "fill with", unit: "" }
+            { 
+              name: requestLanguage === 'pl' ? "Alkohol" : "Spirit", 
+              amount: "50", 
+              unit: "ml" 
+            },
+            { 
+              name: requestLanguage === 'pl' ? "Kostki lodu" : "Ice cubes", 
+              amount: requestLanguage === 'pl' ? "do pełna" : "fill with", 
+              unit: "" 
+            }
           ],
-          instructions: language === 'pl'
+          instructions: requestLanguage === 'pl'
             ? ["Napełnij szklankę lodem", "Dodaj alkohol", "Wymieszaj"]
             : ["Fill glass with ice", "Add spirit", "Stir"],
-          glassType: language === 'pl' ? "szklanka" : "glass"
+          glassType: requestLanguage === 'pl' ? "szklanka" : "glass"
         }],
         almostPossible: null,
         shoppingList: [{
-          ingredient: language === 'pl' ? "Cytryna" : "Lemon",
+          ingredient: requestLanguage === 'pl' ? "Cytryna" : "Lemon",
           unlocksCount: 5,
           priority: "high",
-          reason: language === 'pl' 
+          reason: requestLanguage === 'pl' 
             ? "Podstawa wielu klasycznych koktajli"
             : "Essential for many classic cocktails",
           newCocktails: ["Whiskey Sour", "Tom Collins", "Daiquiri"]
@@ -241,7 +240,9 @@ Suggest available cocktails, one almost possible, and strategic purchase.`;
           available: false,
           difficulty: suggestions.almostPossible.difficulty || "easy",
           instructions: suggestions.almostPossible.instructions || [],
-          glassType: suggestions.almostPossible.glassType || (language === 'pl' ? "szklanka" : "glass")
+          glassType: suggestions.almostPossible.glassType || (
+            requestLanguage === 'pl' ? "szklanka" : "glass"
+          )
         },
         missingIngredient: suggestions.almostPossible.missingIngredient
       }];
