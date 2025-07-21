@@ -16,7 +16,7 @@ CRITICAL RULES:
 7. NO EMOJIS - use plain text only
 8. servingTemp: return NUMBER ONLY without °C (e.g., "5" not "5°C")
 9. abv: return NUMBER ONLY without % or ~ (e.g., 25 not "~25%")
-10. method: always return in English ("shaken", "stirred", "built", "blended")
+10. ALWAYS create recipe for the EXACT cocktail requested
 
 OUTPUT FORMAT (EXACT):
 {
@@ -28,15 +28,15 @@ OUTPUT FORMAT (EXACT):
     {"name": "[ingredient]", "amount": "[number]", "unit": "ml/dash/barspoon"},
     {"name": "[ingredient]", "amount": "[number]", "unit": "ml/dash/barspoon"}
   ],
-  "glassType": "[exact glass type in requested language]",
-  "method": "shaken/stirred/built/blended",
+  "glassType": "[glass type - SHORT name]",
+  "method": "[method in requested language]",
   "instructions": [
     "[Professional step 1]",
     "[Professional step 2]",
     "[Professional step 3]"
   ],
   "garnish": "[Professional garnish description]",
-  "ice": "[Type of ice in requested language: kostki/kruszony/duża kostka/bez]",
+  "ice": "[Type of ice]",
   "servingTemp": "5",
   "abv": 25,
   "prepTime": 5,
@@ -48,54 +48,99 @@ OUTPUT FORMAT (EXACT):
 }
 
 POLISH TRANSLATIONS:
-- ice cubes → kostki lodu
-- crushed ice → kruszony lód
+GLASS TYPES (use SHORT names):
+- rocks glass → rocks
+- coupe glass → coupe
+- highball glass → highball
+- martini glass → martini
+- collins glass → collins
+- hurricane glass → hurricane
+- flute glass → flute
+- shot glass → shot
+- wine glass → kieliszek
+
+METHODS:
+- shaken → wstrząsany
+- stirred → mieszany
+- built → budowany
+- blended → blendowany
+- thrown → rzucany
+- rolled → toczony
+
+ICE TYPES:
+- ice cubes → kostki
+- crushed ice → kruszony
 - large cube → duża kostka
 - no ice → bez lodu
-- rocks glass → szklanka rocks
-- coupe glass → kieliszek coupe
-- highball glass → szklanka highball
-- martini glass → kieliszek martini
-- collins glass → szklanka collins`;
+- sphere → kula
+
+ENGLISH GLASS TYPES (SHORT):
+- rocks/old fashioned
+- coupe
+- highball
+- martini
+- collins
+- hurricane
+- flute
+- shot`;
 
 module.exports = async (req, res) => {
   console.log('🍹 Recipe generator endpoint called');
+  console.log('📥 Full request body:', req.body);
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { cocktailName, ingredients = [], language = 'pl' } = req.body;
-    console.log(`📝 Generating recipe for: ${cocktailName} in ${language}`);
+    const { drinkName, cocktailName, ingredients = [], language = 'pl' } = req.body;
+    const finalCocktailName = drinkName || cocktailName;
+    
+    console.log(`📝 Generating recipe for: ${finalCocktailName} in ${language}`);
+    
+    if (!finalCocktailName) {
+      return res.status(400).json({ error: 'Cocktail name is required' });
+    }
 
     let userPrompt;
     
     if (language === 'pl') {
-      userPrompt = `Stwórz profesjonalny przepis na koktajl "${cocktailName}".
+      userPrompt = `Stwórz profesjonalny przepis na koktajl "${finalCocktailName}".
       
+WAŻNE: 
+- Musisz stworzyć przepis na DOKŁADNIE TEN koktajl: ${finalCocktailName}
+- NIE TWÓRZ przepisu na inny koktajl!
+- name: dokładnie "${finalCocktailName}"
+
 WYMAGANIA:
-- Wszystkie teksty PO POLSKU (oprócz method które ma być po angielsku)
+- Wszystkie teksty PO POLSKU
+- method: po polsku (wstrząsany/mieszany/budowany/blendowany)
+- glassType: KRÓTKA nazwa po polsku (rocks/coupe/highball/martini/collins)
+- ice: krótko po polsku (kostki/kruszony/duża kostka/bez lodu)
 - Prawdziwa historia koktajlu z konkretnymi datami i twórcami
 - Dokładne proporcje składników w ml (standardy IBA jeśli istnieją)
-- Profesjonalne techniki barmańskie
 - servingTemp: tylko liczba bez °C
 - abv: tylko liczba bez % i bez ~
-- method: po angielsku (shaken/stirred/built/blended)
 - NIE UŻYWAJ EMOTEK
 
 ${ingredients.length > 0 ? `Użyj tych składników: ${ingredients.join(', ')}` : ''}`;
     } else {
-      userPrompt = `Create a professional cocktail recipe for "${cocktailName}".
+      userPrompt = `Create a professional cocktail recipe for "${finalCocktailName}".
       
+IMPORTANT: 
+- You must create a recipe for EXACTLY THIS cocktail: ${finalCocktailName}
+- DO NOT create a recipe for any other cocktail!
+- name: exactly "${finalCocktailName}"
+
 REQUIREMENTS:
 - All text in ENGLISH
+- method: in English (shaken/stirred/built/blended)
+- glassType: SHORT name (rocks/coupe/highball/martini/collins)
+- ice: short form (cubed/crushed/large cube/no ice)
 - Real cocktail history with specific dates and creators
 - Exact ingredient measurements in ml (IBA standards if applicable)
-- Professional bartending techniques
 - servingTemp: number only without °C
 - abv: number only without % or ~
-- method: in English (shaken/stirred/built/blended)
 - NO EMOJIS
 
 ${ingredients.length > 0 ? `Use these ingredients: ${ingredients.join(', ')}` : ''}`;
@@ -134,25 +179,16 @@ ${ingredients.length > 0 ? `Use these ingredients: ${ingredients.join(', ')}` : 
         recipe.abv = Number(String(recipe.abv).replace(/[~%]/g, '').trim());
       }
       
-      // Ensure method is in English
-      const methodMap = {
-        'wstrząsany': 'shaken',
-        'mieszany': 'stirred',
-        'budowany': 'built',
-        'blendowany': 'blended'
-      };
-      
-      if (recipe.method && methodMap[recipe.method.toLowerCase()]) {
-        recipe.method = methodMap[recipe.method.toLowerCase()];
-      }
+      // Ensure name matches request
+      recipe.name = recipe.name || finalCocktailName;
+      recipe.nameEn = recipe.nameEn || finalCocktailName;
       
       // Add default values if missing
       recipe.servingTemp = recipe.servingTemp || "5";
-      recipe.ice = recipe.ice || (language === 'pl' ? "kostki lodu" : "ice cubes");
+      recipe.ice = recipe.ice || (language === 'pl' ? "kostki" : "cubed");
       recipe.abv = recipe.abv || 20;
       recipe.prepTime = recipe.prepTime || 5;
       recipe.difficulty = recipe.difficulty || "medium";
-      recipe.nameEn = recipe.nameEn || cocktailName;
       
       // Ensure proper formatting
       if (recipe.ingredients) {
@@ -166,25 +202,58 @@ ${ingredients.length > 0 ? `Use these ingredients: ${ingredients.join(', ')}` : 
     } catch (parseError) {
       console.error('Parse error:', parseError);
       
-      // Fallback for parsing errors
-      recipe = {
-        name: cocktailName,
-        nameEn: cocktailName,
-        category: "classic",
-        history: language === 'pl' 
-          ? `${cocktailName} to klasyczny koktajl o bogatej historii.`
-          : `${cocktailName} is a classic cocktail with a rich history.`,
+      // Fallback for parsing errors - SPECIFIC to requested cocktail
+      const fallbackRecipes = {
+        'Negroni': {
+          pl: {
+            name: "Negroni",
+            ingredients: [
+              { name: "gin", amount: "30", unit: "ml" },
+              { name: "Campari", amount: "30", unit: "ml" },
+              { name: "słodki wermut", amount: "30", unit: "ml" }
+            ],
+            method: "mieszany",
+            glassType: "rocks",
+            history: "Negroni został stworzony w 1919 roku we Florencji, gdy hrabia Camillo Negroni poprosił o wzmocnienie swojego ulubionego koktajlu Americano poprzez zastąpienie wody sodowej ginem."
+          }
+        },
+        'Daiquiri': {
+          pl: {
+            name: "Daiquiri",
+            ingredients: [
+              { name: "biały rum", amount: "60", unit: "ml" },
+              { name: "sok z limonki", amount: "25", unit: "ml" },
+              { name: "syrop cukrowy", amount: "15", unit: "ml" }
+            ],
+            method: "wstrząsany",
+            glassType: "coupe",
+            history: "Daiquiri powstało około 1898 roku na Kubie, w kopalni żelaza niedaleko Santiago de Cuba. Nazwę zawdzięcza plaży Daiquiri."
+          }
+        }
+      };
+      
+      const fallback = fallbackRecipes[finalCocktailName]?.[language] || {
+        name: finalCocktailName,
         ingredients: [
           { name: language === 'pl' ? "Główny alkohol" : "Base spirit", amount: "60", unit: "ml" },
           { name: language === 'pl' ? "Modyfikator" : "Modifier", amount: "30", unit: "ml" }
         ],
-        glassType: language === 'pl' ? "szklanka rocks" : "rocks glass",
-        method: "stirred",
+        method: language === 'pl' ? "mieszany" : "stirred",
+        glassType: "rocks",
+        history: language === 'pl' 
+          ? `${finalCocktailName} to klasyczny koktajl o bogatej historii.`
+          : `${finalCocktailName} is a classic cocktail with a rich history.`
+      };
+      
+      recipe = {
+        ...fallback,
+        nameEn: finalCocktailName,
+        category: "classic",
         instructions: language === 'pl' 
           ? ["Dodaj wszystkie składniki do szklanki", "Wymieszaj", "Podaj z lodem"]
           : ["Add all ingredients to glass", "Stir well", "Serve over ice"],
         garnish: language === 'pl' ? "Skórka cytryny" : "Lemon peel",
-        ice: language === 'pl' ? "kostki lodu" : "ice cubes",
+        ice: language === 'pl' ? "kostki" : "cubed",
         servingTemp: "5",
         abv: 25,
         prepTime: 5,
@@ -205,7 +274,7 @@ ${ingredients.length > 0 ? `Use these ingredients: ${ingredients.join(', ')}` : 
       createdAt: new Date().toISOString()
     };
 
-    console.log('✅ Sending professional recipe');
+    console.log('✅ Sending recipe for:', response.name);
     res.status(200).json(response);
     
   } catch (error) {
