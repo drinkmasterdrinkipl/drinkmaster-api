@@ -22,18 +22,26 @@ CLASSIC IBA RECIPES (EXACT PROPORTIONS):
 - Martini: gin 60ml, dry vermouth 10ml - STIRRED
 - Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN
 - Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN
-- Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional) - SHAKEN
-- Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN
+- Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional) - SHAKEN in ROCKS glass
+- Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
+- Amaretto Sour: amaretto 45ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
+- Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash - SHAKEN in ROCKS glass
 - Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda water top - BUILT
 - Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml - BUILT
 - Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml (shot on side) - SHAKEN
 - Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN
 - Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml (2:3:1) - BUILT
 - Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN
-- Mai Tai: aged rum 30ml, ruum agricole 30ml, Cointreau 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN
+- Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN
 - Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT
-- Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT
+- Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT in WINE glass
 - Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN
+
+CRITICAL GLASS RULES:
+- ALL SOUR cocktails = ROCKS glass
+- Hugo = WINE glass
+- Mojito, Cuba Libre = HIGHBALL glass
+- Martini variations = COUPE or MARTINI glass
 
 INSTRUCTION RULES BY METHOD:
 - SHAKEN: Use shaker, add ice to shaker, shake hard 12-15 seconds, strain
@@ -130,11 +138,13 @@ CRITICAL:
 - ALL text in POLISH except 'method' field
 - ALL ingredients with Polish names (świeżo wyciśnięty sok z limonki, NOT fresh lime juice)
 - Units in Polish: leaves = listków, tsp = łyżeczki, piece = sztuka
-- Glass types in Polish (szkło highball, NOT highball glass)
+- Glass types in Polish (szklanka highball, NOT highball glass)
 - Instructions in Polish
 - History in Polish
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "do pełna" NOT "0 ml"
+- SOUR cocktails MUST use "szklanka rocks"
+- HUGO MUST use "kieliszek do wina"
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use szklanica barmańska in instructions
@@ -150,6 +160,8 @@ CRITICAL:
 - Complete ingredient list with measurements
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "top up" NOT "0 ml"
+- SOUR cocktails MUST use "rocks glass"
+- HUGO MUST use "wine glass"
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use mixing glass in instructions
@@ -228,6 +240,66 @@ RETURN PURE JSON!`;
       // FIX SPECIFIC COCKTAILS
       const nameLower = finalCocktailName.toLowerCase();
       
+      // Fix ALL SOUR cocktails - always rocks glass with ice
+      if (nameLower.includes('sour')) {
+        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
+        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
+        
+        // Fix instructions for sours to mention rocks glass
+        if (recipe.instructions && requestLanguage === 'pl') {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/szklanki highball/g, 'szklanki rocks')
+              .replace(/szklanka highball/g, 'szklanka rocks')
+              .replace(/kieliszka coupe/g, 'szklanki rocks')
+              .replace(/kieliszek coupe/g, 'szklanka rocks')
+              .replace(/bez lodu/g, 'z lodem');
+          });
+        } else if (recipe.instructions) {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/highball glass/g, 'rocks glass')
+              .replace(/coupe glass/g, 'rocks glass')
+              .replace(/without ice/g, 'with ice');
+          });
+        }
+        
+        // Ensure sour has lemon juice
+        const hasLemon = recipe.ingredients.some(i => 
+          i.name.toLowerCase().includes('lemon') || 
+          i.name.toLowerCase().includes('cytry')
+        );
+        
+        if (!hasLemon) {
+          recipe.ingredients.splice(1, 0, {
+            name: requestLanguage === 'pl' ? "świeżo wyciśnięty sok z cytryny" : "fresh lemon juice",
+            amount: "30",
+            unit: "ml"
+          });
+        }
+      }
+      
+      // Fix HUGO - always wine glass
+      if (nameLower.includes('hugo')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek do wina" : "wine glass";
+        
+        // Fix instructions for Hugo to mention wine glass
+        if (recipe.instructions && requestLanguage === 'pl') {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/szklanki highball/g, 'kieliszka do wina')
+              .replace(/szklanka highball/g, 'kieliszek do wina')
+              .replace(/szkle highball/g, 'kieliszku do wina');
+          });
+        } else if (recipe.instructions) {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/highball glass/g, 'wine glass')
+              .replace(/highball/g, 'wine glass');
+          });
+        }
+      }
+      
       // Long Island Iced Tea special handling
       if (nameLower.includes('long island')) {
         // Ensure it's shaken
@@ -290,22 +362,6 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Sour cocktails must have lemon juice
-      if (nameLower.includes('sour')) {
-        const hasLemon = recipe.ingredients.some(i => 
-          i.name.toLowerCase().includes('lemon') || 
-          i.name.toLowerCase().includes('cytry')
-        );
-        
-        if (!hasLemon) {
-          recipe.ingredients.splice(1, 0, {
-            name: requestLanguage === 'pl' ? "świeżo wyciśnięty sok z cytryny" : "fresh lemon juice",
-            amount: "30",
-            unit: "ml"
-          });
-        }
-      }
-      
       // Cuba Libre must have lime juice
       if (nameLower.includes('cuba libre')) {
         const hasLime = recipe.ingredients.some(i => 
@@ -332,6 +388,11 @@ RETURN PURE JSON!`;
       // Fix garnish for Long Island Iced Tea
       if (nameLower.includes('long island') && requestLanguage === 'pl') {
         recipe.garnish = recipe.garnish || "ćwiartka limonki";
+      }
+      
+      // Fix garnish for sours
+      if (nameLower.includes('sour') && requestLanguage === 'pl') {
+        recipe.garnish = recipe.garnish || "plasterek cytryny lub wiśnia koktajlowa";
       }
       
       // Ensure required fields
