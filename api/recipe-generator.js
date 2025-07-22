@@ -6,6 +6,10 @@ const openai = new OpenAI({
 
 const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years of experience. Create ONLY authentic, complete recipes according to IBA standards and classic cocktail books like "The Savoy Cocktail Book" by Harry Craddock (1930).
 
+Reference for classic recipes: https://drinki.pl/drinki.html
+
+When creating recipes for cocktails like Bramble, Clover Club, Hanky Panky, Blood and Sand, Corpse Reviver, and other classics, use the authentic proportions from this reference.
+
 ABSOLUTE RULES:
 
 1. NEVER skip key ingredients (especially citrus juices!)
@@ -14,7 +18,7 @@ ABSOLUTE RULES:
 4. ALL text in the requested language (pl/en) except 'method' field
 5. NEVER include ice in ingredients list - ice is only mentioned in instructions
 6. Match instructions to method: shaken = shaker, stirred = mixing glass, built = serving glass
-7. Use classic recipes from The Savoy Cocktail Book for historical accuracy
+7. Use classic recipes from The Savoy Cocktail Book and drinki.pl for historical accuracy
 
 CLASSIC IBA RECIPES (EXACT PROPORTIONS):
 - Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (1:1:1) - STIRRED
@@ -33,23 +37,27 @@ CLASSIC IBA RECIPES (EXACT PROPORTIONS):
 - Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN
 - Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml (2:3:1) - BUILT
 - Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN
-- Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN
+- Mai Tai: aged rum 30ml, rum agricole 30ml, Cointreau 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN
 - Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT
 - Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT in WINE glass
 - Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN
 
-CLASSIC SAVOY RECIPES (use these proportions for less common cocktails):
-- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml
-- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml
-- Clover Club: gin 50ml, fresh lemon juice 15ml, raspberry syrup 15ml, egg white
-- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml
-- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse
+CLASSIC EXTENDED RECIPES (from drinki.pl reference):
+- Bramble: gin 50ml, fresh lemon juice 25ml, simple syrup 12.5ml, crème de mûre 15ml - SHAKEN, served over crushed ice
+- Clover Club: gin 50ml, raspberry syrup 15ml, fresh lemon juice 15ml, egg white 1 - SHAKEN
+- Hanky Panky: gin 45ml, sweet vermouth 45ml, Fernet Branca 7.5ml - STIRRED
+- Blood and Sand: Scotch whisky 25ml, cherry brandy 25ml, sweet vermouth 25ml, fresh orange juice 25ml - SHAKEN
+- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse - SHAKEN
+- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml - SHAKEN
+- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml - SHAKEN
+- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml - SHAKEN
 
 CRITICAL GLASS RULES:
 - ALL SOUR cocktails = ROCKS glass
 - Hugo = WINE glass
 - Mojito, Cuba Libre = HIGHBALL glass
 - Martini variations = COUPE or MARTINI glass
+- Bramble = ROCKS glass with crushed ice
 
 INSTRUCTION RULES BY METHOD:
 - SHAKEN: Use shaker, add ice to shaker, shake hard 12-15 seconds, strain
@@ -64,8 +72,11 @@ For POLISH (pl):
 - bar spoon = "łyżka barmańska"
 - fresh lime juice = "świeżo wyciśnięty sok z limonki"
 - fresh lemon juice = "świeżo wyciśnięty sok z cytryny"
+- fresh orange juice = "świeżo wyciśnięty sok z pomarańczy"
 - simple syrup = "syrop cukrowy"
 - elderflower syrup = "syrop z kwiatu bzu"
+- raspberry syrup = "syrop malinowy"
+- honey syrup = "syrop miodowy"
 - egg white = "białko jaja"
 - soda water = "woda gazowana"
 - ginger beer = "piwo imbirowe"
@@ -73,6 +84,8 @@ For POLISH (pl):
 - sugar = "cukier"
 - fresh mint = "świeża mięta"
 - top/top up = "do pełna"
+- crème de mûre = "likier jeżynowy"
+- cherry brandy = "likier wiśniowy"
 
 Units in Polish:
 - ml = ml
@@ -306,6 +319,12 @@ RETURN PURE JSON!`;
               .replace(/highball/g, 'wine glass');
           });
         }
+      }
+      
+      // Fix BRAMBLE - always rocks glass with crushed ice
+      if (nameLower.includes('bramble')) {
+        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
+        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
       }
       
       // Long Island Iced Tea special handling
