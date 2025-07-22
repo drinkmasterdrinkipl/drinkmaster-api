@@ -11,35 +11,56 @@ CRITICAL RULES:
 2. Return ONLY valid JSON - no markdown
 3. ALL text in requested language (pl/en)
 4. Never return empty ingredients arrays
-5. Understand ingredient equivalents and common typos:
-   - lemon/cytryna/cytyrna = fresh lemon juice
-   - lime/limonka/liomka = fresh lime juice  
-   - sugar/cukier/cukir = simple syrup
-   - egg/jajko/jajo = egg white
-   - soda/woda gazowana/gazowana = soda water
-   - whisky/whiskey/wisky = whiskey
-   - vodka/wódka/wodka = vodka
-6. ONLY suggest cocktails where user has ALL required ingredients
+5. BE INTUITIVE - understand what users mean:
+   - "cytryna" = user HAS lemon juice (sok z cytryny)
+   - "limonka" = user HAS lime juice (sok z limonki)
+   - "cukier" = user HAS simple syrup (syrop cukrowy)
+   - Users don't need to specify "sok z" - assume juice is available
+   - Ignore garnish/minor ingredients like egg white, bitters, salt for availability
+6. ONLY suggest cocktails where user has ALL MAIN ingredients
 7. For shopping suggestions, prioritize ingredients that unlock the most classic cocktails
 8. Maximum 4 cocktails that can be made with given ingredients
-9. Include COMPLETE recipe details like in professional recipe generator
-10. NEVER suggest a cocktail if missing ANY ingredient (including soda water, tonic, etc.)
+9. Include COMPLETE recipe details
+10. Minor ingredients (egg white, bitters, salt rim) are OPTIONAL - don't block cocktail if missing
 
-GLASSWARE RULES (ALWAYS USE CORRECT GLASS):
-- Rocks/Old Fashioned glass: Whiskey Sour, Old Fashioned, Negroni
-- Highball glass: Tom Collins, Mojito, Cuba Libre, Long Island
-- Coupe glass: Margarita, Daiquiri, Clover Club
-- Martini glass: Martini, Manhattan, Espresso Martini
-- Wine glass: Aperol Spritz, Hugo
-- Copper mug: Moscow Mule
+CRITICAL FILTERING RULES:
+1. IGNORE ALL non-cocktail items:
+   - Furniture (krzesło, stół, okno, wersalka, kanapa, fotel, łóżko)
+   - Food not used in cocktails (kiełbasa, kaszanka, chleb, ser, mięso)
+   - Random objects (telefon, telewizor, samochód, rower)
+   - Clothing (spodnie, koszula, buty)
+2. ONLY ACCEPT cocktail-related ingredients:
+   - Spirits: whisky, gin, rum, vodka, tequila, etc.
+   - Mixers: cola, tonic, soda water, ginger beer
+   - Juices: lemon, lime, orange, pineapple, cranberry
+   - Herbs/garnish: mięta (mint), bazylia (basil), ogórek (cucumber)
+   - Syrups/sweeteners: sugar, honey, grenadine
+   - Liqueurs: triple sec, cointreau, campari, vermouth
+3. Filter out everything else silently
 
-INGREDIENT EQUIVALENTS AND TYPOS:
-- Common typos: wisky->whisky, wodka->vodka, cytyna->cytryna, liomka->limonka
-- gindzier->ginger beer, tonic->tonik, kampari->campari
-- Always understand user intent even with typos
+TYPO UNDERSTANDING:
+- łiski/wisky/wiskey → whisky
+- dzin/dżin/gin → gin
+- wodka/wódka → vodka
+- rom/rhum → rum
+- liomka/limonka → lime
+- cytyna/cytryna → lemon
+- minta/mienta → mięta
+- ogurek/ogórek → cucumber
+- bazylka/bazylia → basil
+- kola/cola → cola
+- tonik/tonic → tonic water
+- cukir/cukier → sugar
+
+INGREDIENT INTERPRETATION:
+- cytryna/lemon = lemon juice IS AVAILABLE
+- limonka/lime = lime juice IS AVAILABLE
+- cukier/sugar = simple syrup IS AVAILABLE
+- pomarańcza/orange = orange juice IS AVAILABLE
+- Always assume juice/syrup form unless specifically stated otherwise
 
 CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
-- Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml
+- Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
 - Tom Collins: gin 50ml, lemon juice 25ml, simple syrup 15ml, soda water top
 - Gin & Tonic: gin 50ml, tonic water 150ml
 - Cuba Libre: rum 50ml, cola 120ml, lime juice 10ml
@@ -48,6 +69,14 @@ CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Negroni: gin 30ml, campari 30ml, sweet vermouth 30ml
 - Old Fashioned: whiskey 60ml, sugar cube 1, bitters 2 dash
 - Moscow Mule: vodka 50ml, lime juice 15ml, ginger beer 120ml
+
+GLASSWARE RULES:
+- Rocks/Old Fashioned glass: Whiskey Sour, Old Fashioned, Negroni
+- Highball glass: Tom Collins, Mojito, Cuba Libre, Long Island
+- Coupe glass: Margarita, Daiquiri, Clover Club
+- Martini glass: Martini, Manhattan, Espresso Martini
+- Wine glass: Aperol Spritz, Hugo
+- Copper mug: Moscow Mule
 
 OUTPUT FORMAT:
 {
@@ -76,7 +105,7 @@ OUTPUT FORMAT:
   "almostPossible": [
     {
       "name": "Cocktail name",
-      "missingIngredient": "What's missing (be specific)",
+      "missingIngredient": "What's missing (only ESSENTIAL ingredients)",
       "description": "Description",
       "ingredients": [full ingredient list]
     }
@@ -93,9 +122,10 @@ OUTPUT FORMAT:
 }
 
 IMPORTANT:
-- If user has gin, lemon, sugar but NO soda water - Tom Collins goes to almostPossible
-- If user has vodka, lime but NO ginger beer - Moscow Mule goes to almostPossible
-- Always check EVERY ingredient before suggesting as available`;
+- If user has "cytryna" they CAN make Whiskey Sour (don't need egg white)
+- If user has "gin, cytryna, cukier" they CAN make Tom Collins if they have soda water
+- Only block cocktails if missing ESSENTIAL alcohols, mixers, or juices
+- Egg white, bitters, salt, garnishes are NICE TO HAVE but NOT required`;
 
 module.exports = async (req, res) => {
   try {
@@ -106,36 +136,52 @@ module.exports = async (req, res) => {
     console.log(`🌍 Language: ${requestLanguage}`);
     
     const userPrompt = requestLanguage === 'pl'
-      ? `Mam te składniki (mogą zawierać błędy): ${ingredients.join(', ')}
+      ? `Mam te składniki: ${ingredients.join(', ')}
 
-KRYTYCZNE ZASADY:
-- Rozpoznaj składniki nawet z błędami (np. "cytyna" = cytryna, "wisky" = whisky)
-- Podaj TYLKO koktajle które NAPRAWDĘ można zrobić ze WSZYSTKICH wymaganych składników
-- Jeśli brakuje JAKIEGOKOLWIEK składnika (np. woda gazowana, tonik) - koktajl idzie do almostPossible
-- Maksymalnie 4 koktajle w sekcji cocktails
-- Dla każdego koktajlu podaj PEŁNY przepis jak w profesjonalnym barze
-- Używaj DOKŁADNYCH proporcji i prawidłowych szklanek
-- W almostPossible podaj maksymalnie 3 koktajle gdzie brakuje tylko 1 składnika
-- W shoppingList podaj 2 najlepsze zakupy
-- Wszystkie teksty po polsku
+KRYTYCZNE ZASADY INTERPRETACJI:
+- IGNORUJ wszystkie przedmioty niezwiązane z koktajlami (meble, jedzenie, ubrania, przedmioty)
+- Akceptuj TYLKO składniki koktajlowe: alkohole, miksery, soki, zioła (mięta, bazylia, ogórek)
+- Rozpoznaj błędy pisowni: łiski→whisky, dzin→gin, minta→mięta, ogurek→ogórek
+- "cytryna" = MAM sok z cytryny
+- "limonka" = MAM sok z limonki  
+- "cukier" = MAM syrop cukrowy
+- "pomarańcza" = MAM sok pomarańczowy
+- NIE WYMAGAJ białka jajka, bitterów, soli do Margarity - to opcjonalne dodatki
+- Whiskey Sour można zrobić BEZ białka jajka
+- Margarita można zrobić BEZ soli na brzegu kieliszka
 
-Przykład: jeśli użytkownik ma gin, cytrynę, cukier ale NIE MA wody gazowanej - Tom Collins NIE może być w cocktails, tylko w almostPossible z informacją że brakuje wody gazowanej.
+PRZYKŁADY:
+- Jeśli mam "whisky, cytryna, cukier" = MOGĘ zrobić Whiskey Sour
+- Jeśli mam "gin, cytryna, cukier" ale NIE MAM wody gazowanej = Tom Collins idzie do almostPossible
+- Jeśli mam "krzesło, kiełbasa, whisky" = używam TYLKO whisky, reszta jest ignorowana
+
+Podaj TYLKO koktajle które naprawdę mogę zrobić z głównych składników.
+Maksymalnie 4 koktajle w sekcji cocktails.
+Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
-      : `I have these ingredients (may contain typos): ${ingredients.join(', ')}
+      : `I have these ingredients: ${ingredients.join(', ')}
 
-CRITICAL RULES:
-- Recognize ingredients even with typos (e.g. "lemon" = lemon juice, "wisky" = whisky)
-- Suggest ONLY cocktails that can ACTUALLY be made with ALL required ingredients
-- If missing ANY ingredient (e.g. soda water, tonic) - cocktail goes to almostPossible
-- Maximum 4 cocktails in cocktails section
-- For each cocktail provide COMPLETE recipe like in professional bar
-- Use EXACT proportions and correct glassware
-- In almostPossible include max 3 cocktails missing only 1 ingredient
-- In shoppingList suggest 2 best purchases
-- All text in English
+CRITICAL INTERPRETATION RULES:
+- IGNORE all non-cocktail items (furniture, food, clothes, objects)
+- Accept ONLY cocktail ingredients: spirits, mixers, juices, herbs (mint, basil, cucumber)
+- Understand typos: wisky→whisky, gin→gin, minta→mint
+- "lemon" = I HAVE lemon juice
+- "lime" = I HAVE lime juice
+- "sugar" = I HAVE simple syrup
+- "orange" = I HAVE orange juice
+- DO NOT REQUIRE egg white, bitters, salt rim - these are optional
+- Whiskey Sour can be made WITHOUT egg white
+- Margarita can be made WITHOUT salt rim
 
-Example: if user has gin, lemon, sugar but NO soda water - Tom Collins CANNOT be in cocktails, only in almostPossible noting soda water is missing.
+EXAMPLES:
+- If I have "whisky, lemon, sugar" = I CAN make Whiskey Sour
+- If I have "gin, lemon, sugar" but NO soda water = Tom Collins goes to almostPossible
+- If I have "chair, sausage, whisky" = use ONLY whisky, ignore the rest
+
+List ONLY cocktails I can actually make with main ingredients.
+Maximum 4 cocktails in cocktails section.
+All text in English.
 
 RETURN ONLY VALID JSON!`;
 
@@ -199,15 +245,13 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
-      // Process almostPossible section - now it's an array
+      // Process almostPossible section
       if (suggestions.almostPossible && Array.isArray(suggestions.almostPossible)) {
-        // Keep it as array, just ensure fields
         suggestions.almostPossible = suggestions.almostPossible.map(item => ({
           ...item,
           ingredients: item.ingredients || []
         }));
       } else if (suggestions.almostPossible && !Array.isArray(suggestions.almostPossible)) {
-        // Convert single object to array
         suggestions.almostPossible = [suggestions.almostPossible];
       }
       
@@ -219,13 +263,13 @@ RETURN ONLY VALID JSON!`;
         cocktails: [],
         almostPossible: [],
         shoppingList: [{
-          ingredient: requestLanguage === 'pl' ? "Cytryna" : "Lemon",
+          ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
           unlocksCount: 5,
           priority: "high",
           reason: requestLanguage === 'pl' 
             ? "Podstawa wielu klasycznych koktajli"
             : "Essential for many classic cocktails",
-          newCocktails: ["Whiskey Sour", "Tom Collins", "Gin Fizz"]
+          newCocktails: ["Cuba Libre", "Mojito", "Margarita"]
         }]
       };
     }
@@ -236,7 +280,7 @@ RETURN ONLY VALID JSON!`;
       shoppingList: suggestions.shoppingList || []
     };
     
-    // Process almostPossible - support both array and single object
+    // Process almostPossible
     if (suggestions.almostPossible) {
       const almostPossibleArray = Array.isArray(suggestions.almostPossible) 
         ? suggestions.almostPossible 
