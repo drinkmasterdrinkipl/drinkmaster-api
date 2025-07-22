@@ -203,8 +203,16 @@ PRZYKŁADY:
 - Jeśli użytkownik ma bazylię i gin, cytrynę, cukier = sugeruj Gin Basil Smash jako opcję
 - Sugeruj tylko sensowne zakupy które pasują do obecnych składników użytkownika
 - NIE sugeruj że limonka "odblokuje Mojito" jeśli użytkownik nie ma mięty i wody gazowanej!
-- Sugestie zakupów muszą być realistyczne - jeden składnik odblokuje drink TYLKO jeśli użytkownik ma WSZYSTKIE pozostałe
+- NIE sugeruj że triple sec "odblokuje Margaritę" jeśli użytkownik nie ma tequili!
+- Sugestie zakupów muszą być realistyczne - jeden składnik odblokuje drink TYLKO jeśli użytkownik ma WSZYSTKIE pozostałe składniki
 - "woda gazowana" to to samo co "soda water" - nie rozróżniaj tych nazw
+
+WAŻNE DLA SUGESTII ZAKUPÓW:
+- Sprawdź WSZYSTKIE wymagane składniki przed sugerowaniem zakupu
+- Margarita = tequila + triple sec + limonka (jeśli brakuje tequili, NIE sugeruj triple sec)
+- Cuba Libre = rum + cola + limonka (jeśli brakuje rumu lub coli, NIE sugeruj limonki)
+- Tom Collins = gin + cytryna + cukier + woda gazowana (sprawdź wszystkie)
+- Mojito = rum + limonka + cukier + mięta + woda gazowana (sprawdź wszystkie)
 
 Podaj koktajle które NAPRAWDĘ można zrobić ze składników.
 Maksymalnie 4 koktajle w sekcji cocktails.
@@ -234,8 +242,16 @@ EXAMPLES:
 - If user has basil and gin, lemon, sugar = suggest Gin Basil Smash as option
 - Only suggest shopping items that make sense with user's current ingredients
 - DON'T suggest that lime "unlocks Mojito" if user doesn't have mint and soda water!
+- DON'T suggest that triple sec "unlocks Margarita" if user doesn't have tequila!
 - Shopping suggestions must be realistic - one ingredient unlocks a drink ONLY if user has ALL other required ingredients
 - "soda water" is the same as "sparkling water" - treat them as equivalent
+
+IMPORTANT FOR SHOPPING SUGGESTIONS:
+- Check ALL required ingredients before suggesting a purchase
+- Margarita = tequila + triple sec + lime (if missing tequila, DON'T suggest triple sec)
+- Cuba Libre = rum + cola + lime (if missing rum or cola, DON'T suggest lime)
+- Tom Collins = gin + lemon + sugar + soda water (check all)
+- Mojito = rum + lime + sugar + mint + soda water (check all)
 
 List cocktails I can ACTUALLY make with ingredients.
 Maximum 4 cocktails in cocktails section.
@@ -333,6 +349,7 @@ RETURN ONLY VALID JSON!`;
       const hasRum = normalizedIngredients.some(i => i.toLowerCase().includes('rum'));
       const hasCola = normalizedIngredients.some(i => i.toLowerCase().includes('cola'));
       const hasGin = normalizedIngredients.some(i => i.toLowerCase().includes('gin'));
+      const hasLime = normalizedIngredients.some(i => i.toLowerCase().includes('limonk') || i.toLowerCase().includes('lime'));
       const hasSoda = normalizedIngredients.some(i => 
         i.toLowerCase().includes('woda gazowana') || 
         i.toLowerCase().includes('soda') || 
@@ -342,6 +359,7 @@ RETURN ONLY VALID JSON!`;
       const fallbackCocktails = [];
       const fallbackAlmostPossible = [];
       
+      // Check for Whiskey Sour
       if (hasWhisky && hasSugar && hasLemon) {
         fallbackCocktails.push({
           name: "Whiskey Sour",
@@ -365,13 +383,102 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
-      if (hasGin && hasLemon && hasSugar && !hasSoda) {
+      // Check for Gin Sour
+      if (hasGin && hasSugar && hasLemon) {
+        fallbackCocktails.push({
+          name: "Gin Sour",
+          nameEn: "Gin Sour",
+          available: true,
+          description: requestLanguage === 'pl' ? "Orzeźwiający kwaśny koktajl" : "Refreshing sour cocktail",
+          category: "sour",
+          ingredients: [
+            {name: "Gin", amount: "60", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "30", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki coupe", "Udekoruj cytryną"]
+            : ["Shake all ingredients with ice", "Strain into coupe glass", "Garnish with lemon"],
+          glassType: requestLanguage === 'pl' ? "kieliszek coupe" : "coupe glass",
+          method: "shaken",
+          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
+          garnish: requestLanguage === 'pl' ? "Skórka cytryny" : "Lemon peel",
+          history: ""
+        });
+      }
+      
+      // Check for Cuba Libre
+      if (hasRum && hasCola && hasLime) {
+        fallbackCocktails.push({
+          name: "Cuba Libre",
+          nameEn: "Cuba Libre",
+          available: true,
+          description: requestLanguage === 'pl' ? "Klasyczny drink z rumem i colą" : "Classic rum and cola cocktail",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
+            {name: "Cola", amount: "120", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj rum i sok z limonki", "Dopełnij colą i delikatnie zamieszaj"]
+            : ["Fill glass with ice", "Add rum and lime juice", "Top with cola and stir gently"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Ćwiartka limonki" : "Lime wedge",
+          history: ""
+        });
+      } else if (hasRum && hasCola && !hasLime) {
+        fallbackAlmostPossible.push({
+          name: "Cuba Libre",
+          nameEn: "Cuba Libre",
+          missingIngredient: requestLanguage === 'pl' ? "limonka" : "lime",
+          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl z rumem, colą i limonką" : "Refreshing cocktail with rum, cola and lime",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
+            {name: "Cola", amount: "120", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
+          ],
+          instructions: [],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: ""
+        });
+      }
+      
+      // Check for Tom Collins
+      if (hasGin && hasLemon && hasSugar && hasSoda) {
+        fallbackCocktails.push({
+          name: "Tom Collins",
+          nameEn: "Tom Collins",
+          available: true,
+          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
+          category: "collins",
+          ingredients: [
+            {name: "Gin", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Dodaj gin, sok z cytryny i syrop do szklanki z lodem", "Dopełnij wodą gazowaną", "Delikatnie zamieszaj"]
+            : ["Add gin, lemon juice and syrup to glass with ice", "Top with soda water", "Stir gently"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Plasterek cytryny i wisienka" : "Lemon slice and cherry",
+          history: ""
+        });
+      } else if (hasGin && hasLemon && hasSugar && !hasSoda) {
         fallbackAlmostPossible.push({
           name: "Tom Collins",
           nameEn: "Tom Collins",
           missingIngredient: requestLanguage === 'pl' ? "woda gazowana" : "soda water",
-          description: requestLanguage === 'pl' ? "Orzeźwiający klasyk" : "Refreshing classic",
-          category: "highball",
+          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
+          category: "collins",
           ingredients: [
             {name: "Gin", amount: "50", unit: "ml"},
             {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
@@ -380,24 +487,45 @@ RETURN ONLY VALID JSON!`;
           ],
           instructions: [],
           glassType: "highball",
-          method: "built",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
           ice: requestLanguage === 'pl' ? "kostki" : "cubed",
           garnish: ""
+        });
+      }
+      
+      // Smart shopping suggestions
+      const shoppingList = [];
+      
+      // If has rum and cola but no lime, suggest lime
+      if (hasRum && hasCola && !hasLime) {
+        shoppingList.push({
+          ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
+          unlocksCount: 1,
+          priority: "high",
+          reason: requestLanguage === 'pl' 
+            ? "Masz rum i colę - brakuje tylko limonki do Cuba Libre!"
+            : "You have rum and cola - just need lime for Cuba Libre!",
+          newCocktails: ["Cuba Libre"]
+        });
+      }
+      
+      // If has gin, lemon, sugar but no soda, suggest soda water
+      if (hasGin && hasLemon && hasSugar && !hasSoda) {
+        shoppingList.push({
+          ingredient: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water",
+          unlocksCount: 1,
+          priority: "high",
+          reason: requestLanguage === 'pl' 
+            ? "Masz gin, cytrynę i cukier - brakuje tylko wody gazowanej do Tom Collins!"
+            : "You have gin, lemon and sugar - just need soda water for Tom Collins!",
+          newCocktails: ["Tom Collins"]
         });
       }
       
       suggestions = {
         cocktails: fallbackCocktails,
         almostPossible: fallbackAlmostPossible,
-        shoppingList: [{
-          ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
-          unlocksCount: hasRum && hasCola ? 1 : 3,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? hasRum && hasCola ? "Masz rum i colę - brakuje tylko limonki do Cuba Libre!" : "Podstawa wielu klasycznych koktajli"
-            : hasRum && hasCola ? "You have rum and cola - just need lime for Cuba Libre!" : "Essential for many classic cocktails",
-          newCocktails: hasRum && hasCola ? ["Cuba Libre"] : ["Cuba Libre", "Margarita", "Daiquiri"]
-        }]
+        shoppingList: shoppingList
       };
     }
 
