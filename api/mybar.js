@@ -11,72 +11,91 @@ CRITICAL RULES:
 2. Return ONLY valid JSON - no markdown
 3. ALL text in requested language (pl/en)
 4. Never return empty ingredients arrays
-5. Understand ingredient equivalents (e.g., lemon = lemon juice, sugar = simple syrup)
-6. Suggest ONLY cocktails that can actually be made with given ingredients
+5. Understand ingredient equivalents and common typos:
+   - lemon/cytryna/cytyrna = fresh lemon juice
+   - lime/limonka/liomka = fresh lime juice  
+   - sugar/cukier/cukir = simple syrup
+   - egg/jajko/jajo = egg white
+   - soda/woda gazowana/gazowana = soda water
+   - whisky/whiskey/wisky = whiskey
+   - vodka/wódka/wodka = vodka
+6. ONLY suggest cocktails where user has ALL required ingredients
 7. For shopping suggestions, prioritize ingredients that unlock the most classic cocktails
 8. Maximum 4 cocktails that can be made with given ingredients
+9. Include COMPLETE recipe details like in professional recipe generator
+10. NEVER suggest a cocktail if missing ANY ingredient (including soda water, tonic, etc.)
 
-INGREDIENT EQUIVALENTS:
-- lemon/cytryna = fresh lemon juice
-- lime/limonka = fresh lime juice  
-- sugar/cukier = simple syrup
-- egg/jajko = egg white
-- soda/woda gazowana = soda water
+GLASSWARE RULES (ALWAYS USE CORRECT GLASS):
+- Rocks/Old Fashioned glass: Whiskey Sour, Old Fashioned, Negroni
+- Highball glass: Tom Collins, Mojito, Cuba Libre, Long Island
+- Coupe glass: Margarita, Daiquiri, Clover Club
+- Martini glass: Martini, Manhattan, Espresso Martini
+- Wine glass: Aperol Spritz, Hugo
+- Copper mug: Moscow Mule
 
-CLASSIC COCKTAIL KNOWLEDGE:
-- Whiskey Sour: whiskey, lemon juice, simple syrup (optional: egg white)
-- Gin & Tonic: gin, tonic water
-- Gin Sour: gin, lemon juice, simple syrup
-- Cuba Libre: rum, cola, lime juice
-- Long Island Iced Tea: vodka, gin, rum, tequila, triple sec, lemon juice, simple syrup, cola
-- Margarita: tequila, triple sec/cointreau, lime juice
-- Mojito: white rum, lime juice, sugar, mint, soda water
-- Old Fashioned: whiskey/bourbon, sugar, bitters
-- Manhattan: whiskey, sweet vermouth, bitters
-- Negroni: gin, campari, sweet vermouth
-- Martini: gin, dry vermouth
-- Daiquiri: white rum, lime juice, simple syrup
-- Tom Collins: gin, lemon juice, simple syrup, soda water
-- Moscow Mule: vodka, lime juice, ginger beer
-- Aperol Spritz: aperol, prosecco, soda water
-- Espresso Martini: vodka, coffee liqueur, espresso
-- Cosmopolitan: vodka, triple sec, lime juice, cranberry juice
-- Mai Tai: rum, orange curaçao, orgeat, lime juice
+INGREDIENT EQUIVALENTS AND TYPOS:
+- Common typos: wisky->whisky, wodka->vodka, cytyna->cytryna, liomka->limonka
+- gindzier->ginger beer, tonic->tonik, kampari->campari
+- Always understand user intent even with typos
+
+CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
+- Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml
+- Tom Collins: gin 50ml, lemon juice 25ml, simple syrup 15ml, soda water top
+- Gin & Tonic: gin 50ml, tonic water 150ml
+- Cuba Libre: rum 50ml, cola 120ml, lime juice 10ml
+- Mojito: white rum 50ml, lime juice 30ml, sugar 2 tsp, mint 10-12 leaves, soda water top
+- Margarita: tequila 50ml, triple sec 30ml, lime juice 20ml
+- Negroni: gin 30ml, campari 30ml, sweet vermouth 30ml
+- Old Fashioned: whiskey 60ml, sugar cube 1, bitters 2 dash
+- Moscow Mule: vodka 50ml, lime juice 15ml, ginger beer 120ml
 
 OUTPUT FORMAT:
 {
   "cocktails": [
     {
-      "name": "Cocktail name",
+      "name": "Cocktail name in requested language",
+      "nameEn": "English name",
       "available": true,
-      "description": "Brief description",
-      "difficulty": "easy|medium|hard",
+      "description": "Brief description in requested language",
+      "category": "classic/modern/tiki/sour",
       "ingredients": [
         {"name": "ingredient", "amount": "50", "unit": "ml"}
       ],
-      "instructions": ["step1", "step2", "step3"],
-      "glassType": "glass type",
+      "instructions": [
+        "Complete step 1",
+        "Complete step 2",
+        "Complete step 3"
+      ],
+      "glassType": "correct glass type in requested language",
       "method": "shaken|stirred|built",
       "ice": "cubed|crushed|none",
-      "garnish": "garnish description"
+      "garnish": "garnish description",
+      "history": "Brief history in requested language"
     }
   ],
-  "almostPossible": {
-    "name": "Cocktail name",
-    "missingIngredient": "What's missing",
-    "description": "Description",
-    "ingredients": [full ingredient list]
-  },
+  "almostPossible": [
+    {
+      "name": "Cocktail name",
+      "missingIngredient": "What's missing (be specific)",
+      "description": "Description",
+      "ingredients": [full ingredient list]
+    }
+  ],
   "shoppingList": [
     {
       "ingredient": "Item to buy",
       "unlocksCount": number,
       "priority": "high|medium|low", 
-      "reason": "Why recommended",
+      "reason": "Why recommended in requested language",
       "newCocktails": ["cocktail1", "cocktail2", "cocktail3"]
     }
   ]
-}`;
+}
+
+IMPORTANT:
+- If user has gin, lemon, sugar but NO soda water - Tom Collins goes to almostPossible
+- If user has vodka, lime but NO ginger beer - Moscow Mule goes to almostPossible
+- Always check EVERY ingredient before suggesting as available`;
 
 module.exports = async (req, res) => {
   try {
@@ -87,28 +106,36 @@ module.exports = async (req, res) => {
     console.log(`🌍 Language: ${requestLanguage}`);
     
     const userPrompt = requestLanguage === 'pl'
-      ? `Mam te składniki: ${ingredients.join(', ')}
+      ? `Mam te składniki (mogą zawierać błędy): ${ingredients.join(', ')}
 
-WAŻNE ZASADY:
-- Traktuj cytryną jako sok z cytryny, limonkę jako sok z limonki, cukier jako syrop cukrowy
-- Podaj MAKSYMALNIE 4 koktajle które NAPRAWDĘ można zrobić z tych składników
-- Jeśli można zrobić mniej niż 4, podaj tylko te które są możliwe
-- Używaj DOKŁADNYCH proporcji z klasycznych receptur
-- Dla każdego koktajlu podaj pełną listę składników i instrukcje
-- W shoppingList podaj 2 najlepsze zakupy które odblokują najwięcej klasycznych koktajli
+KRYTYCZNE ZASADY:
+- Rozpoznaj składniki nawet z błędami (np. "cytyna" = cytryna, "wisky" = whisky)
+- Podaj TYLKO koktajle które NAPRAWDĘ można zrobić ze WSZYSTKICH wymaganych składników
+- Jeśli brakuje JAKIEGOKOLWIEK składnika (np. woda gazowana, tonik) - koktajl idzie do almostPossible
+- Maksymalnie 4 koktajle w sekcji cocktails
+- Dla każdego koktajlu podaj PEŁNY przepis jak w profesjonalnym barze
+- Używaj DOKŁADNYCH proporcji i prawidłowych szklanek
+- W almostPossible podaj maksymalnie 3 koktajle gdzie brakuje tylko 1 składnika
+- W shoppingList podaj 2 najlepsze zakupy
 - Wszystkie teksty po polsku
 
-RETURN ONLY VALID JSON!`
-      : `I have these ingredients: ${ingredients.join(', ')}
+Przykład: jeśli użytkownik ma gin, cytrynę, cukier ale NIE MA wody gazowanej - Tom Collins NIE może być w cocktails, tylko w almostPossible z informacją że brakuje wody gazowanej.
 
-IMPORTANT RULES:
-- Treat lemon as lemon juice, lime as lime juice, sugar as simple syrup
-- Suggest MAXIMUM 4 cocktails that can ACTUALLY be made with these ingredients
-- If less than 4 are possible, only suggest those that are possible
-- Use EXACT proportions from classic recipes
-- For each cocktail provide full ingredient list and instructions
-- In shoppingList suggest 2 best purchases that unlock the most classic cocktails
+RETURN ONLY VALID JSON!`
+      : `I have these ingredients (may contain typos): ${ingredients.join(', ')}
+
+CRITICAL RULES:
+- Recognize ingredients even with typos (e.g. "lemon" = lemon juice, "wisky" = whisky)
+- Suggest ONLY cocktails that can ACTUALLY be made with ALL required ingredients
+- If missing ANY ingredient (e.g. soda water, tonic) - cocktail goes to almostPossible
+- Maximum 4 cocktails in cocktails section
+- For each cocktail provide COMPLETE recipe like in professional bar
+- Use EXACT proportions and correct glassware
+- In almostPossible include max 3 cocktails missing only 1 ingredient
+- In shoppingList suggest 2 best purchases
 - All text in English
+
+Example: if user has gin, lemon, sugar but NO soda water - Tom Collins CANNOT be in cocktails, only in almostPossible noting soda water is missing.
 
 RETURN ONLY VALID JSON!`;
 
@@ -119,7 +146,7 @@ RETURN ONLY VALID JSON!`;
         { role: "user", content: userPrompt }
       ],
       temperature: 0.3,
-      max_tokens: 2500,
+      max_tokens: 3000,
     });
 
     const aiResponse = response.choices[0].message.content;
@@ -143,20 +170,45 @@ RETURN ONLY VALID JSON!`;
       suggestions = JSON.parse(cleanedResponse);
       console.log('✅ Successfully parsed MyBar JSON');
       
-      // Ensure proper structure and add missing fields
+      // Process cocktails section
       if (suggestions.cocktails) {
-        suggestions.cocktails = suggestions.cocktails.map(cocktail => ({
-          ...cocktail,
-          available: true,
-          difficulty: cocktail.difficulty || 'medium',
-          method: cocktail.method || 'stirred',
-          ice: cocktail.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
-          glassType: cocktail.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
-          garnish: cocktail.garnish || '',
-          instructions: cocktail.instructions || [
-            requestLanguage === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
-          ]
+        suggestions.cocktails = suggestions.cocktails.map(cocktail => {
+          // Ensure all required fields
+          const processed = {
+            ...cocktail,
+            available: true,
+            category: cocktail.category || 'classic',
+            method: cocktail.method || 'stirred',
+            ice: cocktail.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
+            glassType: cocktail.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
+            garnish: cocktail.garnish || '',
+            history: cocktail.history || '',
+            instructions: cocktail.instructions || [
+              requestLanguage === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
+            ]
+          };
+          
+          // Fix glass types for Polish
+          if (requestLanguage === 'pl') {
+            processed.glassType = processed.glassType
+              .replace('szklanka wysokiej', 'szklanka highball')
+              .replace('kieliszek do martini', 'kieliszek martini');
+          }
+          
+          return processed;
+        });
+      }
+      
+      // Process almostPossible section - now it's an array
+      if (suggestions.almostPossible && Array.isArray(suggestions.almostPossible)) {
+        // Keep it as array, just ensure fields
+        suggestions.almostPossible = suggestions.almostPossible.map(item => ({
+          ...item,
+          ingredients: item.ingredients || []
         }));
+      } else if (suggestions.almostPossible && !Array.isArray(suggestions.almostPossible)) {
+        // Convert single object to array
+        suggestions.almostPossible = [suggestions.almostPossible];
       }
       
     } catch (e) {
@@ -165,7 +217,7 @@ RETURN ONLY VALID JSON!`;
       // Safe fallback
       suggestions = {
         cocktails: [],
-        almostPossible: null,
+        almostPossible: [],
         shoppingList: [{
           ingredient: requestLanguage === 'pl' ? "Cytryna" : "Lemon",
           unlocksCount: 5,
@@ -184,23 +236,33 @@ RETURN ONLY VALID JSON!`;
       shoppingList: suggestions.shoppingList || []
     };
     
-    // Add missing one ingredient if exists
-    if (suggestions.almostPossible && suggestions.almostPossible.ingredients && 
-        suggestions.almostPossible.ingredients.length > 0) {
-      transformedResponse.missingOneIngredient = [{
-        drink: {
-          ...suggestions.almostPossible,
-          available: false,
-          difficulty: suggestions.almostPossible.difficulty || "medium",
-          method: suggestions.almostPossible.method || "stirred",
-          ice: suggestions.almostPossible.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
-          instructions: suggestions.almostPossible.instructions || [],
-          glassType: suggestions.almostPossible.glassType || (
-            requestLanguage === 'pl' ? "szklanka" : "glass"
-          )
-        },
-        missingIngredient: suggestions.almostPossible.missingIngredient
-      }];
+    // Process almostPossible - support both array and single object
+    if (suggestions.almostPossible) {
+      const almostPossibleArray = Array.isArray(suggestions.almostPossible) 
+        ? suggestions.almostPossible 
+        : [suggestions.almostPossible];
+      
+      transformedResponse.missingOneIngredient = almostPossibleArray
+        .filter(item => item && item.ingredients && item.ingredients.length > 0)
+        .map(item => ({
+          drink: {
+            name: item.name,
+            nameEn: item.nameEn || item.name,
+            description: item.description || '',
+            available: false,
+            category: item.category || "classic",
+            method: item.method || "stirred",
+            ice: item.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
+            instructions: item.instructions || [],
+            glassType: item.glassType || (requestLanguage === 'pl' ? "szklanka" : "glass"),
+            ingredients: item.ingredients,
+            garnish: item.garnish || '',
+            history: item.history || ''
+          },
+          missingIngredient: item.missingIngredient
+        }));
+    } else {
+      transformedResponse.missingOneIngredient = [];
     }
 
     res.json({ data: transformedResponse });
