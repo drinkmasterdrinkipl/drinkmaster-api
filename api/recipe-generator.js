@@ -8,8 +8,6 @@ const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years
 
 Reference for classic recipes: https://drinki.pl/drinki.html
 
-When creating recipes for cocktails like Bramble, Clover Club, Hanky Panky, Blood and Sand, Corpse Reviver, and other classics, use the authentic proportions from this reference.
-
 ABSOLUTE RULES:
 
 1. NEVER skip key ingredients (especially citrus juices!)
@@ -19,45 +17,98 @@ ABSOLUTE RULES:
 5. NEVER include ice in ingredients list - ice is only mentioned in instructions
 6. Match instructions to method: shaken = shaker, stirred = mixing glass, built = serving glass
 7. Use classic recipes from The Savoy Cocktail Book and drinki.pl for historical accuracy
+8. GLASSWARE IS CRITICAL - Each cocktail MUST be served in its traditional, correct glass type
 
-CLASSIC IBA RECIPES (EXACT PROPORTIONS):
-- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml (1:1:1) - STIRRED
-- Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash - STIRRED
-- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash - STIRRED
-- Martini: gin 60ml, dry vermouth 10ml - STIRRED
-- Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN
-- Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN
+GLASSWARE RULES (NEVER DEVIATE):
+
+COUPE GLASS (kieliszek coupe):
+- Daiquiri, Margarita, Clover Club, White Lady, Aviation, Sidecar
+- Most classic shaken cocktails without ice
+- Porn Star Martini, Cosmopolitan, Bee's Knees
+
+ROCKS/OLD FASHIONED GLASS (szklanka rocks):
+- ALL SOUR cocktails (Whiskey Sour, Vodka Sour, Amaretto Sour, Pisco Sour)
+- Old Fashioned, Negroni, Boulevardier, Sazerac
+- Bramble (with crushed ice), Caipirinha
+- Any spirit served "on the rocks"
+
+HIGHBALL GLASS (szklanka highball):
+- Mojito, Cuba Libre, Paloma, Tom Collins
+- Moscow Mule (unless copper mug available)
+- Long Island Iced Tea, Dark 'n' Stormy
+- Any cocktail with soda/cola top-up
+
+MARTINI GLASS (kieliszek martini):
+- Classic Martini, Manhattan, Espresso Martini
+- Any "-tini" variation served up
+
+WINE GLASS (kieliszek do wina):
+- Hugo, Aperol Spritz, any wine-based cocktails
+- Sangria, wine cocktails
+
+COPPER MUG (kubek miedziany):
+- Moscow Mule (traditional), Kentucky Mule
+
+FLUTE GLASS (kieliszek flute):
+- French 75, Mimosa, Bellini
+- Any champagne-based cocktail
+
+COLLINS GLASS (szklanka collins):
+- Tom Collins, John Collins, any Collins variation
+- Can substitute highball if needed
+
+HURRICANE GLASS (szklanka hurricane):
+- Hurricane, tropical tiki drinks
+
+NICK & NORA (kieliszek nick & nora):
+- Alternative to coupe for classic cocktails
+- Martini variations, Manhattan variations
+
+CLASSIC IBA RECIPES WITH CORRECT GLASSWARE:
+- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass
+- Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash - STIRRED in ROCKS glass
+- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash - STIRRED in MARTINI glass
+- Martini: gin 60ml, dry vermouth 10ml - STIRRED in MARTINI glass
+- Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN in COUPE glass
+- Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN in COUPE glass
 - Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional) - SHAKEN in ROCKS glass
 - Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
 - Amaretto Sour: amaretto 45ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
 - Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash - SHAKEN in ROCKS glass
-- Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda water top - BUILT
-- Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml - BUILT
-- Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml (shot on side) - SHAKEN
-- Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN
-- Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml (2:3:1) - BUILT
-- Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN
-- Mai Tai: aged rum 30ml, rum agricole 30ml, Cointreau 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN
-- Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT
+- Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda water top - BUILT in HIGHBALL glass
+- Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml - BUILT in COPPER MUG (or highball)
+- Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml - SHAKEN in COUPE glass
+- Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN in MARTINI glass
+- Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml - BUILT in WINE glass
+- Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN in COUPE glass
+- Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN in ROCKS glass
+- Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT in HIGHBALL glass
 - Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT in WINE glass
-- Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN
+- Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN in HIGHBALL glass
+- French 75: gin 30ml, fresh lemon juice 15ml, simple syrup 10ml, Champagne top - SHAKEN & BUILT in FLUTE glass
 
-CLASSIC EXTENDED RECIPES (from drinki.pl reference):
-- Bramble: gin 50ml, fresh lemon juice 25ml, simple syrup 12.5ml, crème de mûre 15ml - SHAKEN, served over crushed ice
-- Clover Club: gin 50ml, raspberry syrup 15ml, fresh lemon juice 15ml, egg white 1 - SHAKEN
-- Hanky Panky: gin 45ml, sweet vermouth 45ml, Fernet Branca 7.5ml - STIRRED
-- Blood and Sand: Scotch whisky 25ml, cherry brandy 25ml, sweet vermouth 25ml, fresh orange juice 25ml - SHAKEN
-- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse - SHAKEN
-- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml - SHAKEN
-- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml - SHAKEN
-- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml - SHAKEN
+CLASSIC EXTENDED RECIPES WITH CORRECT GLASSWARE:
+- Bramble: gin 50ml, fresh lemon juice 25ml, simple syrup 12.5ml, crème de mûre 15ml - SHAKEN in ROCKS glass (crushed ice)
+- Clover Club: gin 50ml, raspberry syrup 15ml, fresh lemon juice 15ml, egg white 1 - SHAKEN in COUPE glass
+- Hanky Panky: gin 45ml, sweet vermouth 45ml, Fernet Branca 7.5ml - STIRRED in COUPE glass
+- Blood and Sand: Scotch whisky 25ml, cherry brandy 25ml, sweet vermouth 25ml, fresh orange juice 25ml - SHAKEN in COUPE glass
+- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse - SHAKEN in COUPE glass
+- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml - SHAKEN in COUPE glass
+- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml - SHAKEN in COUPE glass
+- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml - SHAKEN in COUPE glass
+- Boulevardier: bourbon 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass
+- Sazerac: rye whiskey 60ml, sugar cube 1, Peychaud's bitters 3 dash, absinthe rinse - STIRRED in ROCKS glass
 
-CRITICAL GLASS RULES:
-- ALL SOUR cocktails = ROCKS glass
-- Hugo = WINE glass
-- Mojito, Cuba Libre = HIGHBALL glass
-- Martini variations = COUPE or MARTINI glass
-- Bramble = ROCKS glass with crushed ice
+GLASSWARE DECISION TREE:
+1. Is it served with ice in the glass? → ROCKS or HIGHBALL
+2. Is it topped with soda/cola? → HIGHBALL
+3. Is it a sour? → ROCKS (always)
+4. Is it stirred and strong? → ROCKS (Negroni) or MARTINI (Manhattan)
+5. Is it shaken and served up? → COUPE (preferred) or MARTINI
+6. Does it contain Prosecco/Champagne as main ingredient? → WINE or FLUTE
+7. Is it a tiki/tropical drink? → HURRICANE or special tiki mug
+
+CRITICAL: The glass type affects the entire drinking experience - aroma, temperature, presentation. NEVER compromise on correct glassware.
 
 INSTRUCTION RULES BY METHOD:
 - SHAKEN: Use shaker, add ice to shaker, shake hard 12-15 seconds, strain
@@ -97,12 +148,16 @@ Units in Polish:
 - dash = dash
 
 Glass types in Polish:
-- rocks = "szklanka rocks"
-- coupe = "kieliszek coupe"
-- highball = "szklanka highball"
-- martini = "kieliszek martini"
+- rocks glass = "szklanka rocks"
+- coupe glass = "kieliszek coupe"
+- highball glass = "szklanka highball"
+- martini glass = "kieliszek martini"
 - copper mug = "kubek miedziany"
 - wine glass = "kieliszek do wina"
+- flute glass = "kieliszek flute"
+- collins glass = "szklanka collins"
+- hurricane glass = "szklanka hurricane"
+- nick & nora = "kieliszek nick & nora"
 
 For ENGLISH (en):
 - Use standard English bartending terms
@@ -117,7 +172,7 @@ JSON FORMAT:
   "ingredients": [
     {"name": "[ingredient in request language]", "amount": "[number or 'top up']", "unit": "[unit in request language]"}
   ],
-  "glassType": "[glass type in request language]",
+  "glassType": "[CORRECT glass type in request language based on GLASSWARE RULES]",
   "method": "shaken/stirred/built/thrown/rolled",
   "instructions": [
     "[COMPLETE sentence matching the method - step 1]",
@@ -159,13 +214,14 @@ CRITICAL:
 - ALL text in POLISH except 'method' field
 - ALL ingredients with Polish names (świeżo wyciśnięty sok z limonki, NOT fresh lime juice)
 - Units in Polish: leaves = listków, tsp = łyżeczki, piece = sztuka
-- Glass types in Polish (szklanka highball, NOT highball glass)
+- Glass types in Polish (szklanka highball, NOT highball glass) - USE CORRECT TRADITIONAL GLASS
 - Instructions in Polish
 - History in Polish
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "do pełna" NOT "0 ml"
 - SOUR cocktails MUST use "szklanka rocks"
 - HUGO MUST use "kieliszek do wina"
+- Follow GLASSWARE RULES strictly
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use szklanica barmańska in instructions
@@ -179,10 +235,12 @@ CRITICAL:
 - ALL text in ENGLISH
 - Standard bartending terminology
 - Complete ingredient list with measurements
+- USE CORRECT TRADITIONAL GLASS based on GLASSWARE RULES
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "top up" NOT "0 ml"
 - SOUR cocktails MUST use "rocks glass"
 - HUGO MUST use "wine glass"
+- Follow GLASSWARE RULES strictly
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use mixing glass in instructions
@@ -258,7 +316,7 @@ RETURN PURE JSON!`;
         });
       }
       
-      // FIX SPECIFIC COCKTAILS
+      // FIX SPECIFIC COCKTAILS AND GLASSWARE
       const nameLower = finalCocktailName.toLowerCase();
       
       // Fix ALL SOUR cocktails - always rocks glass with ice
@@ -300,6 +358,40 @@ RETURN PURE JSON!`;
         }
       }
       
+      // Fix classic cocktails glassware
+      if (nameLower.includes('daiquiri') || nameLower.includes('margarita') || 
+          nameLower.includes('clover club') || nameLower.includes('white lady') ||
+          nameLower.includes('aviation') || nameLower.includes('sidecar')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek coupe" : "coupe glass";
+      }
+      
+      if (nameLower.includes('martini') && !nameLower.includes('porn star') && !nameLower.includes('espresso')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
+      }
+      
+      if (nameLower.includes('manhattan')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
+      }
+      
+      if (nameLower.includes('negroni') || nameLower.includes('boulevardier') || 
+          nameLower.includes('old fashioned') || nameLower.includes('sazerac')) {
+        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
+      }
+      
+      if (nameLower.includes('mojito') || nameLower.includes('cuba libre') || 
+          nameLower.includes('tom collins') || nameLower.includes('paloma')) {
+        recipe.glassType = requestLanguage === 'pl' ? "szklanka highball" : "highball glass";
+      }
+      
+      if (nameLower.includes('spritz') || nameLower.includes('hugo')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek do wina" : "wine glass";
+      }
+      
+      if (nameLower.includes('french 75') || nameLower.includes('mimosa') || 
+          nameLower.includes('bellini')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek flute" : "flute glass";
+      }
+      
       // Fix HUGO - always wine glass
       if (nameLower.includes('hugo')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek do wina" : "wine glass";
@@ -331,6 +423,7 @@ RETURN PURE JSON!`;
       if (nameLower.includes('long island')) {
         // Ensure it's shaken
         recipe.method = 'shaken';
+        recipe.glassType = requestLanguage === 'pl' ? "szklanka highball" : "highball glass";
         
         // Ensure it has cola
         const hasCola = recipe.ingredients.some(i => 
@@ -357,8 +450,10 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Moscow Mule must have lime juice
+      // Moscow Mule - copper mug preferred
       if (nameLower.includes('moscow mule')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kubek miedziany" : "copper mug";
+        
         const hasLime = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lime') || 
           i.name.toLowerCase().includes('limonk')
@@ -464,6 +559,7 @@ RETURN PURE JSON!`;
 
     console.log('✅ Recipe created:', response.name);
     console.log('🌍 Language:', requestLanguage);
+    console.log('🥃 Glass type:', response.glassType);
     console.log('📊 Ingredients:', response.ingredients.map(i => `${i.name}: ${i.amount}${i.unit}`));
     
     res.status(200).json(response);
