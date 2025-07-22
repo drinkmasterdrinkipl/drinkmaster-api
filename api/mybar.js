@@ -57,18 +57,24 @@ INGREDIENT INTERPRETATION - THIS IS CRITICAL:
 - limonka/lime = lime juice IS AVAILABLE
 - cukier/sugar = simple syrup IS AVAILABLE
 - pomarańcza/orange = orange juice IS AVAILABLE
+- woda gazowana/soda water/sparkling water = soda water IS AVAILABLE
+- bazylia/basil = fresh basil IS AVAILABLE
+- mięta/mint = fresh mint IS AVAILABLE
 - Always assume juice/syrup form unless specifically stated otherwise
 
 WHEN CHECKING IF USER CAN MAKE A COCKTAIL:
 - Whiskey Sour needs: whisky + lemon/cytryna + sugar/cukier (egg white is OPTIONAL)
+- Gin Sour needs: gin + lemon/cytryna + sugar/cukier (egg white is OPTIONAL) 
 - Cuba Libre needs: rum + cola + lime/limonka
 - Margarita needs: tequila + triple sec + lime/limonka (salt rim is OPTIONAL)
-- Tom Collins needs: gin + lemon/cytryna + sugar/cukier + soda water
+- Tom Collins needs: gin + lemon/cytryna + sugar/cukier + soda water/woda gazowana
 - Gin & Tonic needs: gin + tonic water
-- Mojito needs: rum + lime/limonka + sugar/cukier + MINT/mięta + soda water (ALL are required!)
+- Mojito needs: rum + lime/limonka + sugar/cukier + MINT/mięta + soda water/woda gazowana (ALL are required!)
+- Gin Basil Smash needs: gin + lemon/cytryna + sugar/cukier + basil/bazylia
 
 CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
+- Gin Sour: gin 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
 - Tom Collins: gin 50ml, lemon juice 25ml, simple syrup 15ml, soda water top
 - Gin & Tonic: gin 50ml, tonic water 150ml
 - Cuba Libre: rum 50ml, cola 120ml, lime juice 10ml
@@ -77,6 +83,7 @@ CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Negroni: gin 30ml, campari 30ml, sweet vermouth 30ml
 - Old Fashioned: whiskey 60ml, sugar cube 1, bitters 2 dash
 - Moscow Mule: vodka 50ml, lime juice 15ml, ginger beer 120ml
+- Gin Basil Smash: gin 60ml, lemon juice 30ml, simple syrup 20ml, basil 8-10 leaves
 
 GLASSWARE RULES:
 - Rocks/Old Fashioned glass: Whiskey Sour, Old Fashioned, Negroni
@@ -192,15 +199,18 @@ WAŻNE - DOKŁADNIE SPRAWDŹ:
 - NIE WYMAGAJ białka jajka, bitterów, soli - to opcjonalne
 
 PRZYKŁADY:
-- "whisky, gin, cola, cukier, cytryna, rum" = użytkownik może zrobić Whiskey Sour (ma whisky + cytryna + cukier)
+- "whisky, gin, cola, cukier, cytryna, rum" = użytkownik może zrobić Whiskey Sour (ma whisky + cytryna + cukier) ORAZ Gin Sour (ma gin + cytryna + cukier)
+- Jeśli użytkownik ma bazylię i gin, cytrynę, cukier = sugeruj Gin Basil Smash jako opcję
 - Sugeruj tylko sensowne zakupy które pasują do obecnych składników użytkownika
 - NIE sugeruj że limonka "odblokuje Mojito" jeśli użytkownik nie ma mięty i wody gazowanej!
 - Sugestie zakupów muszą być realistyczne - jeden składnik odblokuje drink TYLKO jeśli użytkownik ma WSZYSTKIE pozostałe
+- "woda gazowana" to to samo co "soda water" - nie rozróżniaj tych nazw
 
 Podaj koktajle które NAPRAWDĘ można zrobić ze składników.
 Maksymalnie 4 koktajle w sekcji cocktails.
 W shoppingList maksymalnie 3 najlepsze propozycje.
 Wszystkie teksty po polsku.
+Używaj "woda gazowana" zamiast "soda water" w polskich tekstach.
 
 RETURN ONLY VALID JSON!`
       : `I have these ingredients: ${normalizedIngredients.join(', ')}
@@ -220,10 +230,12 @@ IMPORTANT - CHECK CAREFULLY:
 - DO NOT REQUIRE egg white, bitters, salt rim - these are optional
 
 EXAMPLES:
-- "whisky, gin, cola, sugar, lemon, rum" = user can make Whiskey Sour (has whisky + lemon + sugar)
+- "whisky, gin, cola, sugar, lemon, rum" = user can make Whiskey Sour (has whisky + lemon + sugar) AND Gin Sour (has gin + lemon + sugar)
+- If user has basil and gin, lemon, sugar = suggest Gin Basil Smash as option
 - Only suggest shopping items that make sense with user's current ingredients
 - DON'T suggest that lime "unlocks Mojito" if user doesn't have mint and soda water!
 - Shopping suggestions must be realistic - one ingredient unlocks a drink ONLY if user has ALL other required ingredients
+- "soda water" is the same as "sparkling water" - treat them as equivalent
 
 List cocktails I can ACTUALLY make with ingredients.
 Maximum 4 cocktails in cocktails section.
