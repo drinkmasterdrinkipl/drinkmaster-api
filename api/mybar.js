@@ -64,6 +64,8 @@ WHEN CHECKING IF USER CAN MAKE A COCKTAIL:
 - Cuba Libre needs: rum + cola + lime/limonka
 - Margarita needs: tequila + triple sec + lime/limonka (salt rim is OPTIONAL)
 - Tom Collins needs: gin + lemon/cytryna + sugar/cukier + soda water
+- Gin & Tonic needs: gin + tonic water
+- Mojito needs: rum + lime/limonka + sugar/cukier + MINT/mięta + soda water (ALL are required!)
 
 CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
@@ -128,11 +130,10 @@ OUTPUT FORMAT:
 }
 
 IMPORTANT EXAMPLES:
-- If user has "whisky, cytryna, cukier" they CAN make Whiskey Sour
-- If user has "whisky, cola, gin, tequila, cukier" they CAN make cocktails needing those ingredients
+- If user has "whisky, cytryna, cukier" they CAN make Whiskey Sour (show in cocktails section)
+- If user has "rum, cola" but NO lime, Cuba Libre goes to almostPossible
 - If user has "gin, cytryna, cukier" but NO soda water, Tom Collins goes to almostPossible
-- Only block cocktails if missing ESSENTIAL alcohols, mixers, or juices
-- Egg white, bitters, salt, garnishes are NICE TO HAVE but NOT required`;
+- Only suggest shopping items that make sense with user's current ingredients`;
 
 module.exports = async (req, res) => {
   try {
@@ -178,16 +179,20 @@ KRYTYCZNE ZASADY INTERPRETACJI:
 - "pomarańcza" = MAM sok pomarańczowy (orange juice)
 
 WAŻNE - DOKŁADNIE SPRAWDŹ:
-- Jeśli użytkownik ma "whisky, cukier, cytryna" = MOŻE zrobić Whiskey Sour (NIE MÓWI że brakuje cytryny!)
+- Jeśli użytkownik ma "whisky, cukier, cytryna" = MOŻE zrobić Whiskey Sour (pokaz w sekcji cocktails)
 - Jeśli użytkownik ma "rum, cola" ale NIE MA limonki = Cuba Libre idzie do almostPossible
+- Jeśli użytkownik ma "gin, cytryna, cukier" ale NIE MA wody gazowanej = Tom Collins idzie do almostPossible
 - NIE WYMAGAJ białka jajka, bitterów, soli - to opcjonalne
 
 PRZYKŁADY:
-- "whisky, cola, gin, tequila, cukier" = użytkownik MA cukier (syrop), więc nie mów że go brakuje!
-- "krzesło, kiełbasa, whisky" = używam TYLKO whisky, reszta jest ignorowana
+- "whisky, gin, cola, cukier, cytryna, rum" = użytkownik może zrobić Whiskey Sour (ma whisky + cytryna + cukier)
+- Sugeruj tylko sensowne zakupy które pasują do obecnych składników użytkownika
+- NIE sugeruj że limonka "odblokuje Mojito" jeśli użytkownik nie ma mięty i wody gazowanej!
+- Sugestie zakupów muszą być realistyczne - jeden składnik odblokuje drink TYLKO jeśli użytkownik ma WSZYSTKIE pozostałe
 
 Podaj koktajle które NAPRAWDĘ można zrobić ze składników.
 Maksymalnie 4 koktajle w sekcji cocktails.
+W shoppingList maksymalnie 3 najlepsze propozycje.
 Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
@@ -202,16 +207,20 @@ CRITICAL INTERPRETATION RULES:
 - "orange" = I HAVE orange juice
 
 IMPORTANT - CHECK CAREFULLY:
-- If user has "whisky, sugar, lemon" = CAN make Whiskey Sour (DON'T say lemon is missing!)
+- If user has "whisky, sugar, lemon" = CAN make Whiskey Sour (show in cocktails section)
 - If user has "rum, cola" but NO lime = Cuba Libre goes to almostPossible
+- If user has "gin, lemon, sugar" but NO soda water = Tom Collins goes to almostPossible
 - DO NOT REQUIRE egg white, bitters, salt rim - these are optional
 
 EXAMPLES:
-- "whisky, cola, gin, tequila, sugar" = user HAS sugar (syrup), so don't say it's missing!
-- "chair, sausage, whisky" = use ONLY whisky, ignore the rest
+- "whisky, gin, cola, sugar, lemon, rum" = user can make Whiskey Sour (has whisky + lemon + sugar)
+- Only suggest shopping items that make sense with user's current ingredients
+- DON'T suggest that lime "unlocks Mojito" if user doesn't have mint and soda water!
+- Shopping suggestions must be realistic - one ingredient unlocks a drink ONLY if user has ALL other required ingredients
 
 List cocktails I can ACTUALLY make with ingredients.
 Maximum 4 cocktails in cocktails section.
+Maximum 3 items in shoppingList.
 All text in English.
 
 RETURN ONLY VALID JSON!`;
@@ -246,6 +255,7 @@ RETURN ONLY VALID JSON!`;
     try {
       suggestions = JSON.parse(cleanedResponse);
       console.log('✅ Successfully parsed MyBar JSON');
+      console.log(`📊 Results: ${suggestions.cocktails?.length || 0} available, ${suggestions.almostPossible?.length || 0} missing 1`);
       
       // Process cocktails section
       if (suggestions.cocktails) {
@@ -284,19 +294,25 @@ RETURN ONLY VALID JSON!`;
         }));
       } else if (suggestions.almostPossible && !Array.isArray(suggestions.almostPossible)) {
         suggestions.almostPossible = [suggestions.almostPossible];
+      } else {
+        suggestions.almostPossible = [];
       }
       
     } catch (e) {
       console.error('MyBar parse error:', e);
       
-      // Safe fallback with whisky sour check
+      // Safe fallback with basic logic
       const hasWhisky = normalizedIngredients.some(i => i.toLowerCase().includes('whisk'));
       const hasSugar = normalizedIngredients.some(i => i.toLowerCase().includes('cukier') || i.toLowerCase().includes('sugar'));
       const hasLemon = normalizedIngredients.some(i => i.toLowerCase().includes('cytryn') || i.toLowerCase().includes('lemon'));
+      const hasRum = normalizedIngredients.some(i => i.toLowerCase().includes('rum'));
+      const hasCola = normalizedIngredients.some(i => i.toLowerCase().includes('cola'));
       
-      suggestions = {
-        cocktails: hasWhisky && hasSugar && hasLemon ? [{
-          name: requestLanguage === 'pl' ? "Whiskey Sour" : "Whiskey Sour",
+      const fallbackCocktails = [];
+      
+      if (hasWhisky && hasSugar && hasLemon) {
+        fallbackCocktails.push({
+          name: "Whiskey Sour",
           nameEn: "Whiskey Sour",
           available: true,
           description: requestLanguage === 'pl' ? "Klasyczny kwaśny koktajl" : "Classic sour cocktail",
@@ -314,11 +330,15 @@ RETURN ONLY VALID JSON!`;
           ice: requestLanguage === 'pl' ? "kostki" : "cubed",
           garnish: requestLanguage === 'pl' ? "Plasterek cytryny" : "Lemon wheel",
           history: ""
-        }] : [],
+        });
+      }
+      
+      suggestions = {
+        cocktails: fallbackCocktails,
         almostPossible: [],
         shoppingList: [{
           ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
-          unlocksCount: 5,
+          unlocksCount: 3,
           priority: "high",
           reason: requestLanguage === 'pl' 
             ? "Podstawa wielu klasycznych koktajli"
@@ -328,19 +348,15 @@ RETURN ONLY VALID JSON!`;
       };
     }
 
-    // Transform for frontend compatibility
+    // Transform for frontend compatibility - CRITICAL: use correct field names!
     const transformedResponse = {
-      cocktails: suggestions.cocktails || [],
+      possibleDrinks: suggestions.cocktails || [],  // Frontend expects 'possibleDrinks'
       shoppingList: suggestions.shoppingList || []
     };
     
-    // Process almostPossible
-    if (suggestions.almostPossible) {
-      const almostPossibleArray = Array.isArray(suggestions.almostPossible) 
-        ? suggestions.almostPossible 
-        : [suggestions.almostPossible];
-      
-      transformedResponse.missingOneIngredient = almostPossibleArray
+    // Process almostPossible - transform to missingOneIngredient format
+    if (suggestions.almostPossible && suggestions.almostPossible.length > 0) {
+      transformedResponse.missingOneIngredient = suggestions.almostPossible
         .filter(item => item && item.ingredients && item.ingredients.length > 0)
         .map(item => ({
           drink: {
@@ -362,6 +378,12 @@ RETURN ONLY VALID JSON!`;
     } else {
       transformedResponse.missingOneIngredient = [];
     }
+
+    console.log('📤 Sending to frontend:', {
+      possibleDrinks: transformedResponse.possibleDrinks.length,
+      missingOneIngredient: transformedResponse.missingOneIngredient?.length || 0,
+      shoppingList: transformedResponse.shoppingList.length
+    });
 
     res.json({ data: transformedResponse });
     
