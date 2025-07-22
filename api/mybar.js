@@ -52,12 +52,18 @@ TYPO UNDERSTANDING:
 - tonik/tonic → tonic water
 - cukir/cukier → sugar
 
-INGREDIENT INTERPRETATION:
+INGREDIENT INTERPRETATION - THIS IS CRITICAL:
 - cytryna/lemon = lemon juice IS AVAILABLE
 - limonka/lime = lime juice IS AVAILABLE
 - cukier/sugar = simple syrup IS AVAILABLE
 - pomarańcza/orange = orange juice IS AVAILABLE
 - Always assume juice/syrup form unless specifically stated otherwise
+
+WHEN CHECKING IF USER CAN MAKE A COCKTAIL:
+- Whiskey Sour needs: whisky + lemon/cytryna + sugar/cukier (egg white is OPTIONAL)
+- Cuba Libre needs: rum + cola + lime/limonka
+- Margarita needs: tequila + triple sec + lime/limonka (salt rim is OPTIONAL)
+- Tom Collins needs: gin + lemon/cytryna + sugar/cukier + soda water
 
 CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
@@ -121,9 +127,10 @@ OUTPUT FORMAT:
   ]
 }
 
-IMPORTANT:
-- If user has "cytryna" they CAN make Whiskey Sour (don't need egg white)
-- If user has "gin, cytryna, cukier" they CAN make Tom Collins if they have soda water
+IMPORTANT EXAMPLES:
+- If user has "whisky, cytryna, cukier" they CAN make Whiskey Sour
+- If user has "whisky, cola, gin, tequila, cukier" they CAN make cocktails needing those ingredients
+- If user has "gin, cytryna, cukier" but NO soda water, Tom Collins goes to almostPossible
 - Only block cocktails if missing ESSENTIAL alcohols, mixers, or juices
 - Egg white, bitters, salt, garnishes are NICE TO HAVE but NOT required`;
 
@@ -135,51 +142,75 @@ module.exports = async (req, res) => {
     console.log(`🍹 MyBar request - Ingredients: ${ingredients}`);
     console.log(`🌍 Language: ${requestLanguage}`);
     
+    // Pre-process ingredients to normalize common typos
+    const normalizedIngredients = ingredients.map(ing => {
+      const lower = ing.toLowerCase().trim();
+      // Common typos mapping
+      const typoMap = {
+        'łiski': 'whisky',
+        'wisky': 'whisky',
+        'wiskey': 'whisky',
+        'dzin': 'gin',
+        'dżin': 'gin',
+        'wodka': 'vodka',
+        'wódka': 'vodka',
+        'liomka': 'limonka',
+        'cytyna': 'cytryna',
+        'cukir': 'cukier',
+        'minta': 'mięta',
+        'ogurek': 'ogórek',
+        'bazylka': 'bazylia',
+        'kola': 'cola',
+        'tonik': 'tonic'
+      };
+      return typoMap[lower] || ing;
+    });
+    
     const userPrompt = requestLanguage === 'pl'
-      ? `Mam te składniki: ${ingredients.join(', ')}
+      ? `Mam te składniki: ${normalizedIngredients.join(', ')}
 
 KRYTYCZNE ZASADY INTERPRETACJI:
 - IGNORUJ wszystkie przedmioty niezwiązane z koktajlami (meble, jedzenie, ubrania, przedmioty)
 - Akceptuj TYLKO składniki koktajlowe: alkohole, miksery, soki, zioła (mięta, bazylia, ogórek)
-- Rozpoznaj błędy pisowni: łiski→whisky, dzin→gin, minta→mięta, ogurek→ogórek
-- "cytryna" = MAM sok z cytryny
-- "limonka" = MAM sok z limonki  
-- "cukier" = MAM syrop cukrowy
-- "pomarańcza" = MAM sok pomarańczowy
-- NIE WYMAGAJ białka jajka, bitterów, soli do Margarity - to opcjonalne dodatki
-- Whiskey Sour można zrobić BEZ białka jajka
-- Margarita można zrobić BEZ soli na brzegu kieliszka
+- "cytryna" = MAM sok z cytryny (lemon juice)
+- "limonka" = MAM sok z limonki (lime juice)
+- "cukier" = MAM syrop cukrowy (simple syrup)
+- "pomarańcza" = MAM sok pomarańczowy (orange juice)
+
+WAŻNE - DOKŁADNIE SPRAWDŹ:
+- Jeśli użytkownik ma "whisky, cukier, cytryna" = MOŻE zrobić Whiskey Sour (NIE MÓWI że brakuje cytryny!)
+- Jeśli użytkownik ma "rum, cola" ale NIE MA limonki = Cuba Libre idzie do almostPossible
+- NIE WYMAGAJ białka jajka, bitterów, soli - to opcjonalne
 
 PRZYKŁADY:
-- Jeśli mam "whisky, cytryna, cukier" = MOGĘ zrobić Whiskey Sour
-- Jeśli mam "gin, cytryna, cukier" ale NIE MAM wody gazowanej = Tom Collins idzie do almostPossible
-- Jeśli mam "krzesło, kiełbasa, whisky" = używam TYLKO whisky, reszta jest ignorowana
+- "whisky, cola, gin, tequila, cukier" = użytkownik MA cukier (syrop), więc nie mów że go brakuje!
+- "krzesło, kiełbasa, whisky" = używam TYLKO whisky, reszta jest ignorowana
 
-Podaj TYLKO koktajle które naprawdę mogę zrobić z głównych składników.
+Podaj koktajle które NAPRAWDĘ można zrobić ze składników.
 Maksymalnie 4 koktajle w sekcji cocktails.
 Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
-      : `I have these ingredients: ${ingredients.join(', ')}
+      : `I have these ingredients: ${normalizedIngredients.join(', ')}
 
 CRITICAL INTERPRETATION RULES:
 - IGNORE all non-cocktail items (furniture, food, clothes, objects)
 - Accept ONLY cocktail ingredients: spirits, mixers, juices, herbs (mint, basil, cucumber)
-- Understand typos: wisky→whisky, gin→gin, minta→mint
 - "lemon" = I HAVE lemon juice
 - "lime" = I HAVE lime juice
 - "sugar" = I HAVE simple syrup
 - "orange" = I HAVE orange juice
+
+IMPORTANT - CHECK CAREFULLY:
+- If user has "whisky, sugar, lemon" = CAN make Whiskey Sour (DON'T say lemon is missing!)
+- If user has "rum, cola" but NO lime = Cuba Libre goes to almostPossible
 - DO NOT REQUIRE egg white, bitters, salt rim - these are optional
-- Whiskey Sour can be made WITHOUT egg white
-- Margarita can be made WITHOUT salt rim
 
 EXAMPLES:
-- If I have "whisky, lemon, sugar" = I CAN make Whiskey Sour
-- If I have "gin, lemon, sugar" but NO soda water = Tom Collins goes to almostPossible
-- If I have "chair, sausage, whisky" = use ONLY whisky, ignore the rest
+- "whisky, cola, gin, tequila, sugar" = user HAS sugar (syrup), so don't say it's missing!
+- "chair, sausage, whisky" = use ONLY whisky, ignore the rest
 
-List ONLY cocktails I can actually make with main ingredients.
+List cocktails I can ACTUALLY make with ingredients.
 Maximum 4 cocktails in cocktails section.
 All text in English.
 
@@ -258,9 +289,32 @@ RETURN ONLY VALID JSON!`;
     } catch (e) {
       console.error('MyBar parse error:', e);
       
-      // Safe fallback
+      // Safe fallback with whisky sour check
+      const hasWhisky = normalizedIngredients.some(i => i.toLowerCase().includes('whisk'));
+      const hasSugar = normalizedIngredients.some(i => i.toLowerCase().includes('cukier') || i.toLowerCase().includes('sugar'));
+      const hasLemon = normalizedIngredients.some(i => i.toLowerCase().includes('cytryn') || i.toLowerCase().includes('lemon'));
+      
       suggestions = {
-        cocktails: [],
+        cocktails: hasWhisky && hasSugar && hasLemon ? [{
+          name: requestLanguage === 'pl' ? "Whiskey Sour" : "Whiskey Sour",
+          nameEn: "Whiskey Sour",
+          available: true,
+          description: requestLanguage === 'pl' ? "Klasyczny kwaśny koktajl" : "Classic sour cocktail",
+          category: "sour",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "60", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "30", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki rocks", "Udekoruj plasterkiem cytryny"]
+            : ["Shake all ingredients with ice", "Strain into rocks glass", "Garnish with lemon wheel"],
+          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
+          method: "shaken",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Plasterek cytryny" : "Lemon wheel",
+          history: ""
+        }] : [],
         almostPossible: [],
         shoppingList: [{
           ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
