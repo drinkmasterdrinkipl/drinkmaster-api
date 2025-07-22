@@ -113,9 +113,16 @@ OUTPUT FORMAT:
   "almostPossible": [
     {
       "name": "Cocktail name",
+      "nameEn": "English name",
       "missingIngredient": "What's missing (only ESSENTIAL ingredients)",
       "description": "Description",
-      "ingredients": [full ingredient list]
+      "category": "classic",
+      "ingredients": [full ingredient list],
+      "instructions": ["step1", "step2"],
+      "glassType": "glass type",
+      "method": "method",
+      "ice": "ice type",
+      "garnish": "garnish"
     }
   ],
   "shoppingList": [
@@ -290,7 +297,13 @@ RETURN ONLY VALID JSON!`;
       if (suggestions.almostPossible && Array.isArray(suggestions.almostPossible)) {
         suggestions.almostPossible = suggestions.almostPossible.map(item => ({
           ...item,
-          ingredients: item.ingredients || []
+          nameEn: item.nameEn || item.name,
+          ingredients: item.ingredients || [],
+          instructions: item.instructions || [],
+          method: item.method || 'stirred',
+          ice: item.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
+          glassType: item.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
+          garnish: item.garnish || ''
         }));
       } else if (suggestions.almostPossible && !Array.isArray(suggestions.almostPossible)) {
         suggestions.almostPossible = [suggestions.almostPossible];
@@ -307,8 +320,15 @@ RETURN ONLY VALID JSON!`;
       const hasLemon = normalizedIngredients.some(i => i.toLowerCase().includes('cytryn') || i.toLowerCase().includes('lemon'));
       const hasRum = normalizedIngredients.some(i => i.toLowerCase().includes('rum'));
       const hasCola = normalizedIngredients.some(i => i.toLowerCase().includes('cola'));
+      const hasGin = normalizedIngredients.some(i => i.toLowerCase().includes('gin'));
+      const hasSoda = normalizedIngredients.some(i => 
+        i.toLowerCase().includes('woda gazowana') || 
+        i.toLowerCase().includes('soda') || 
+        i.toLowerCase().includes('sparkling')
+      );
       
       const fallbackCocktails = [];
+      const fallbackAlmostPossible = [];
       
       if (hasWhisky && hasSugar && hasLemon) {
         fallbackCocktails.push({
@@ -333,30 +353,46 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
+      if (hasGin && hasLemon && hasSugar && !hasSoda) {
+        fallbackAlmostPossible.push({
+          name: "Tom Collins",
+          nameEn: "Tom Collins",
+          missingIngredient: requestLanguage === 'pl' ? "woda gazowana" : "soda water",
+          description: requestLanguage === 'pl' ? "Orzeźwiający klasyk" : "Refreshing classic",
+          category: "highball",
+          ingredients: [
+            {name: "Gin", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
+          ],
+          instructions: [],
+          glassType: "highball",
+          method: "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: ""
+        });
+      }
+      
       suggestions = {
         cocktails: fallbackCocktails,
-        almostPossible: [],
+        almostPossible: fallbackAlmostPossible,
         shoppingList: [{
           ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
-          unlocksCount: 3,
+          unlocksCount: hasRum && hasCola ? 1 : 3,
           priority: "high",
           reason: requestLanguage === 'pl' 
-            ? "Podstawa wielu klasycznych koktajli"
-            : "Essential for many classic cocktails",
-          newCocktails: ["Cuba Libre", "Mojito", "Margarita"]
+            ? hasRum && hasCola ? "Masz rum i colę - brakuje tylko limonki do Cuba Libre!" : "Podstawa wielu klasycznych koktajli"
+            : hasRum && hasCola ? "You have rum and cola - just need lime for Cuba Libre!" : "Essential for many classic cocktails",
+          newCocktails: hasRum && hasCola ? ["Cuba Libre"] : ["Cuba Libre", "Margarita", "Daiquiri"]
         }]
       };
     }
 
-    // Transform for frontend compatibility - CRITICAL: use correct field names!
-    const transformedResponse = {
-      possibleDrinks: suggestions.cocktails || [],  // Frontend expects 'possibleDrinks'
-      shoppingList: suggestions.shoppingList || []
-    };
-    
-    // Process almostPossible - transform to missingOneIngredient format
-    if (suggestions.almostPossible && suggestions.almostPossible.length > 0) {
-      transformedResponse.missingOneIngredient = suggestions.almostPossible
+    // CRITICAL: Return data wrapped in 'data' property for consistency with other endpoints
+    const responseData = {
+      possibleDrinks: suggestions.cocktails || [],
+      missingOneIngredient: (suggestions.almostPossible || [])
         .filter(item => item && item.ingredients && item.ingredients.length > 0)
         .map(item => ({
           drink: {
@@ -374,18 +410,18 @@ RETURN ONLY VALID JSON!`;
             history: item.history || ''
           },
           missingIngredient: item.missingIngredient
-        }));
-    } else {
-      transformedResponse.missingOneIngredient = [];
-    }
+        })),
+      shoppingList: suggestions.shoppingList || []
+    };
 
     console.log('📤 Sending to frontend:', {
-      possibleDrinks: transformedResponse.possibleDrinks.length,
-      missingOneIngredient: transformedResponse.missingOneIngredient?.length || 0,
-      shoppingList: transformedResponse.shoppingList.length
+      possibleDrinks: responseData.possibleDrinks.length,
+      missingOneIngredient: responseData.missingOneIngredient.length,
+      shoppingList: responseData.shoppingList.length
     });
 
-    res.json({ data: transformedResponse });
+    // CRITICAL: Wrap response in 'data' property to match what frontend expects
+    res.json({ data: responseData });
     
   } catch (error) {
     console.error('MyBar error:', error);
