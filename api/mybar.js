@@ -14,6 +14,7 @@ CRITICAL RULES:
 5. Understand ingredient equivalents (e.g., lemon = lemon juice, sugar = simple syrup)
 6. Suggest ONLY cocktails that can actually be made with given ingredients
 7. For shopping suggestions, prioritize ingredients that unlock the most classic cocktails
+8. Maximum 4 cocktails that can be made with given ingredients
 
 INGREDIENT EQUIVALENTS:
 - lemon/cytryna = fresh lemon juice
