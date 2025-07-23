@@ -31,6 +31,21 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'highball'
   },
+  'Rum & Coke': {
+    required: ['rum', 'cola'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Vodka Red Bull': {
+    required: ['vodka', 'energy drink'],
+    optional: [],
+    category: 'modern'
+  },
+  'Jägerbomb': {
+    required: ['jagermeister', 'energy drink'],
+    optional: [],
+    category: 'shot'
+  },
   'Mojito': {
     required: ['rum', 'lime', 'sugar', 'mint', 'soda water'],
     optional: [],
@@ -67,13 +82,13 @@ const COCKTAIL_RECIPES = {
     category: 'classic'
   },
   'Old Fashioned': {
-    required: ['whisky', 'sugar', 'bitters'],
-    optional: ['orange'],
+    required: ['whisky', 'sugar'],
+    optional: ['bitters', 'orange'],
     category: 'classic'
   },
   'Manhattan': {
-    required: ['whisky', 'vermouth', 'bitters'],
-    optional: ['cherry'],
+    required: ['whisky', 'vermouth'],
+    optional: ['bitters', 'cherry'],
     category: 'classic'
   },
   'Daiquiri': {
@@ -91,6 +106,11 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'classic'
   },
+  'Dark & Stormy': {
+    required: ['rum', 'ginger beer', 'lime'],
+    optional: [],
+    category: 'classic'
+  },
   'Long Island Iced Tea': {
     required: ['vodka', 'gin', 'rum', 'tequila', 'triple sec', 'lemon', 'cola'],
     optional: [],
@@ -105,6 +125,96 @@ const COCKTAIL_RECIPES = {
     required: ['vodka', 'kahlua', 'espresso'],
     optional: [],
     category: 'modern'
+  },
+  'Vodka Cranberry': {
+    required: ['vodka', 'cranberry'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Vodka Orange': {
+    required: ['vodka', 'orange'],
+    optional: [],
+    category: 'highball'
+  },
+  'Screwdriver': {
+    required: ['vodka', 'orange'],
+    optional: [],
+    category: 'highball'
+  },
+  'Tequila Sunrise': {
+    required: ['tequila', 'orange', 'grenadine'],
+    optional: [],
+    category: 'highball'
+  },
+  'Sex on the Beach': {
+    required: ['vodka', 'peach schnapps', 'orange', 'cranberry'],
+    optional: [],
+    category: 'highball'
+  },
+  'Piña Colada': {
+    required: ['rum', 'coconut cream', 'pineapple'],
+    optional: [],
+    category: 'tiki'
+  },
+  'Mai Tai': {
+    required: ['rum', 'orange liqueur', 'lime', 'orgeat'],
+    optional: [],
+    category: 'tiki'
+  },
+  'Whiskey Coke': {
+    required: ['whisky', 'cola'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Gin Fizz': {
+    required: ['gin', 'lemon', 'sugar', 'soda water'],
+    optional: ['egg white'],
+    category: 'fizz'
+  },
+  'Paloma': {
+    required: ['tequila', 'grapefruit', 'lime', 'soda water'],
+    optional: ['salt'],
+    category: 'highball'
+  },
+  'Bloody Mary': {
+    required: ['vodka', 'tomato juice', 'lemon'],
+    optional: ['worcestershire', 'tabasco', 'celery'],
+    category: 'brunch'
+  },
+  'Mimosa': {
+    required: ['champagne', 'orange'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Bellini': {
+    required: ['prosecco', 'peach'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Kir Royale': {
+    required: ['champagne', 'cassis'],
+    optional: [],
+    category: 'aperitif'
+  },
+  'Caipirinha': {
+    required: ['cachaca', 'lime', 'sugar'],
+    optional: [],
+    category: 'classic'
+  },
+  'Pisco Sour': {
+    required: ['pisco', 'lime', 'sugar'],
+    optional: ['egg white', 'bitters'],
+    category: 'sour'
+  },
+  'Vodka Tonic': {
+    required: ['vodka', 'tonic'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Amaretto Sour': {
+    required: ['amaretto', 'lemon', 'sugar'],
+    optional: ['egg white'],
+    category: 'sour'
   }
 };
 
@@ -160,6 +270,22 @@ Common brands and what they are:
 - Cointreau = triple sec (premium)
 - Grand Marnier = orange liqueur (can replace triple sec)
 
+SOFT DRINKS & ENERGY DRINKS:
+- Red Bull = energy drink (can use for vodka red bull)
+- Monster = energy drink
+- Rockstar = energy drink
+- Tiger = energy drink
+- Burn = energy drink
+- Fanta = orange soda (can replace orange juice in some cocktails)
+- Mirinda = orange soda
+- Mountain Dew = citrus soda
+- Dr Pepper = cherry/cola drink
+- Ginger Beer = spicy ginger mixer (for Moscow Mule, Dark & Stormy)
+- Tonic Water = quinine mixer (for Gin & Tonic, Vodka Tonic)
+- Soda Water / Club Soda = carbonated water
+- Sparkling Water = carbonated water
+- Juice brands: Tymbark, Hortex, Cappy, Tropicana = various juices
+
 INGREDIENT MAPPING:
 - "whisky" or any whiskey brand → has whiskey
 - "gin" or any gin brand → has gin
@@ -180,15 +306,24 @@ INGREDIENT MAPPING:
 - "mleko" or "milk" or "śmietana" or "cream" → has cream/milk
 - "woda gazowana" or "soda water" → has soda water
 - "bitter" or "bitters" or "angostura" → has bitters
+- "red bull" or "monster" or "tiger" → has energy drink
+- "fanta" or "mirinda" → has orange soda (can work as orange juice)
+- "sprite" or "7up" → has lemon-lime soda
+- "ginger beer" or "canada dry" → has ginger beer
+- "pomarańcza" or "orange" or "sok pomarańczowy" → has orange juice
+- "żurawina" or "cranberry" → has cranberry juice
+- "grejpfrut" or "grapefruit" → has grapefruit juice
 
 CRITICAL COCKTAIL REQUIREMENTS:
 Check ALL ingredients before suggesting any cocktail or shopping item!
+NEVER suggest optional ingredients like bitters, egg white, garnishes as shopping items.
 
 SHOPPING LOGIC - BE EXTREMELY CAREFUL:
 1. NEVER suggest an ingredient if user is missing multiple other ingredients for that cocktail
 2. Only suggest ingredients that unlock cocktails with CURRENT ingredients
 3. Check the COMPLETE recipe before any suggestion
 4. Maximum 2 shopping suggestions
+5. NEVER suggest optional ingredients (bitters, egg white, salt rim, garnishes)
 
 Example checks:
 - Has cola only → DON'T suggest rum (also needs lime for Cuba Libre)
@@ -312,7 +447,19 @@ function normalizeIngredient(ing) {
     'sprite': 'lemon-lime soda',
     '7up': 'lemon-lime soda',
     '7 up': 'lemon-lime soda',
-    'canada dry': 'ginger ale',
+    'canada dry': 'ginger beer',
+    'fanta': 'orange',
+    'mirinda': 'orange',
+    'mountain dew': 'citrus soda',
+    'dr pepper': 'cola',
+    
+    // Energy drinks
+    'red bull': 'energy drink',
+    'redbull': 'energy drink',
+    'monster': 'energy drink',
+    'rockstar': 'energy drink',
+    'tiger': 'energy drink',
+    'burn': 'energy drink',
     
     // Liqueurs
     'baileys': 'cream',
@@ -322,6 +469,8 @@ function normalizeIngredient(ing) {
     'grand marnier': 'triple sec',
     'martini': 'vermouth',
     'cinzano': 'vermouth',
+    'jägermeister': 'jagermeister',
+    'jagermeister': 'jagermeister',
     
     // Polish typos
     'łiski': 'whisky',
@@ -390,6 +539,26 @@ function hasIngredient(userIngredients, required) {
            normalizedUser.includes('sparkling water');
   }
   
+  if (required === 'energy drink') {
+    return normalizedUser.includes('energy drink') || 
+           normalizedUser.includes('red bull') || 
+           normalizedUser.includes('monster') ||
+           normalizedUser.includes('tiger') ||
+           normalizedUser.includes('rockstar') ||
+           normalizedUser.includes('burn');
+  }
+  
+  if (required === 'orange') {
+    return normalizedUser.includes('orange') || 
+           normalizedUser.includes('fanta') || 
+           normalizedUser.includes('mirinda');
+  }
+  
+  if (required === 'ginger beer') {
+    return normalizedUser.includes('ginger beer') || 
+           normalizedUser.includes('canada dry');
+  }
+  
   return normalizedUser.includes(required);
 }
 
@@ -405,6 +574,120 @@ function checkCocktails(userIngredients) {
     for (const req of recipe.required) {
       if (!hasIngredient(userIngredients, req)) {
         missingRequired.push(req);
+      // Check for Vodka Red Bull
+      if (hasVodka && hasEnergyDrink) {
+        fallbackCocktails.push({
+          name: "Vodka Red Bull",
+          nameEn: "Vodka Red Bull",
+          available: true,
+          description: requestLanguage === 'pl' ? "Energetyzujący drink" : "Energy cocktail",
+          category: "modern",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
+            {name: "Red Bull", amount: "250", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij Red Bullem"]
+            : ["Fill glass with ice", "Add vodka", "Top with Red Bull"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: "",
+          history: ""
+        });
+      }
+      
+      // Check for Rum & Coke (easier than Cuba Libre - no lime needed)
+      if (hasRum && hasCola) {
+        fallbackCocktails.push({
+          name: "Rum & Coke",
+          nameEn: "Rum & Coke",
+          available: true,
+          description: requestLanguage === 'pl' ? "Prosty klasyk" : "Simple classic",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
+            {name: "Cola", amount: "150", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj rum", "Dopełnij colą"]
+            : ["Fill glass with ice", "Add rum", "Top with cola"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Opcjonalnie: limonka" : "Optional: lime",
+          history: ""
+        });
+      }
+      
+      // Check for Vodka Orange/Screwdriver
+      if (hasVodka && hasOrange) {
+        fallbackCocktails.push({
+          name: "Screwdriver",
+          nameEn: "Screwdriver",
+          available: true,
+          description: requestLanguage === 'pl' ? "Klasyczny drink śniadaniowy" : "Classic brunch cocktail",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok pomarańczowy" : "Orange juice", amount: "150", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij sokiem pomarańczowym", "Zamieszaj"]
+            : ["Fill glass with ice", "Add vodka", "Top with orange juice", "Stir"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Plasterek pomarańczy" : "Orange slice",
+          history: ""
+        });
+      }
+      
+      // Check for Vodka Cranberry
+      if (hasVodka && hasCranberry) {
+        fallbackCocktails.push({
+          name: "Vodka Cranberry",
+          nameEn: "Vodka Cranberry",
+          available: true,
+          description: requestLanguage === 'pl' ? "Orzeźwiający i owocowy" : "Refreshing and fruity",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok żurawinowy" : "Cranberry juice", amount: "150", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij sokiem żurawinowym", "Zamieszaj"]
+            : ["Fill glass with ice", "Add vodka", "Top with cranberry juice", "Stir"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Limonka" : "Lime wedge",
+          history: ""
+        });
+      }
+      
+      // Check for Moscow Mule
+      if (hasVodka && hasLime && hasGingerBeer) {
+        fallbackCocktails.push({
+          name: "Moscow Mule",
+          nameEn: "Moscow Mule",
+          available: true,
+          description: requestLanguage === 'pl' ? "Orzeźwiający z imbirem" : "Refreshing with ginger",
+          category: "classic",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "15", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Piwo imbirowe" : "Ginger beer", amount: "120", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij kubek miedzą lub szklankę lodem", "Dodaj wódkę i sok z limonki", "Dopełnij piwem imbirowym", "Delikatnie zamieszaj"]
+            : ["Fill copper mug or glass with ice", "Add vodka and lime juice", "Top with ginger beer", "Stir gently"],
+          glassType: requestLanguage === 'pl' ? "kubek miedziany" : "copper mug",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Ćwiartka limonki" : "Lime wedge",
+          history: ""
+        });
       }
     }
     
