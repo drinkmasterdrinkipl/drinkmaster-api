@@ -4,11 +4,115 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Comprehensive cocktail recipes database
+const COCKTAIL_RECIPES = {
+  'Whiskey Sour': {
+    required: ['whisky', 'lemon', 'sugar'],
+    optional: ['egg white'],
+    category: 'sour'
+  },
+  'Gin Sour': {
+    required: ['gin', 'lemon', 'sugar'],
+    optional: ['egg white'],
+    category: 'sour'
+  },
+  'Tom Collins': {
+    required: ['gin', 'lemon', 'sugar', 'soda water'],
+    optional: [],
+    category: 'collins'
+  },
+  'Gin & Tonic': {
+    required: ['gin', 'tonic'],
+    optional: ['lime', 'lemon'],
+    category: 'highball'
+  },
+  'Cuba Libre': {
+    required: ['rum', 'cola', 'lime'],
+    optional: [],
+    category: 'highball'
+  },
+  'Mojito': {
+    required: ['rum', 'lime', 'sugar', 'mint', 'soda water'],
+    optional: [],
+    category: 'highball'
+  },
+  'Margarita': {
+    required: ['tequila', 'triple sec', 'lime'],
+    optional: ['salt'],
+    category: 'classic'
+  },
+  'Negroni': {
+    required: ['gin', 'campari', 'vermouth'],
+    optional: ['orange'],
+    category: 'classic'
+  },
+  'White Russian': {
+    required: ['vodka', 'kahlua', 'cream'],
+    optional: [],
+    category: 'classic'
+  },
+  'Black Russian': {
+    required: ['vodka', 'kahlua'],
+    optional: [],
+    category: 'classic'
+  },
+  'Gin Basil Smash': {
+    required: ['gin', 'lemon', 'sugar', 'basil'],
+    optional: [],
+    category: 'modern'
+  },
+  'Whiskey Honey': {
+    required: ['whisky', 'honey', 'lemon'],
+    optional: ['hot water'],
+    category: 'classic'
+  },
+  'Old Fashioned': {
+    required: ['whisky', 'sugar', 'bitters'],
+    optional: ['orange'],
+    category: 'classic'
+  },
+  'Manhattan': {
+    required: ['whisky', 'vermouth', 'bitters'],
+    optional: ['cherry'],
+    category: 'classic'
+  },
+  'Daiquiri': {
+    required: ['rum', 'lime', 'sugar'],
+    optional: [],
+    category: 'classic'
+  },
+  'Cosmopolitan': {
+    required: ['vodka', 'triple sec', 'cranberry', 'lime'],
+    optional: [],
+    category: 'modern'
+  },
+  'Moscow Mule': {
+    required: ['vodka', 'lime', 'ginger beer'],
+    optional: [],
+    category: 'classic'
+  },
+  'Long Island Iced Tea': {
+    required: ['vodka', 'gin', 'rum', 'tequila', 'triple sec', 'lemon', 'cola'],
+    optional: [],
+    category: 'modern'
+  },
+  'Aperol Spritz': {
+    required: ['aperol', 'prosecco', 'soda water'],
+    optional: ['orange'],
+    category: 'aperitif'
+  },
+  'Espresso Martini': {
+    required: ['vodka', 'kahlua', 'espresso'],
+    optional: [],
+    category: 'modern'
+  }
+};
+
 const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails, their authentic recipes, AND brand names.
 
 CRITICAL RULES:
 1. Use ONLY authentic classic recipes with correct proportions
-2. Return ONLY valid JSON - no markdown
+2. Return ONLY valid JSON - no markdown, no extra text
 3. ALL text in requested language (pl/en)
 4. Never return empty ingredients arrays
 5. BE INTUITIVE - understand what users mean:
@@ -16,18 +120,18 @@ CRITICAL RULES:
    - "limonka" = user HAS lime juice (sok z limonki)
    - "cukier" = user HAS simple syrup (syrop cukrowy)
    - Users don't need to specify "sok z" - assume juice is available
-   - Ignore garnish/minor ingredients like egg white, bitters, salt for availability
 6. ONLY suggest cocktails where user has ALL MAIN ingredients
-7. For shopping suggestions, prioritize ingredients that unlock the most classic cocktails
-8. Show ALL cocktails that can be made with given ingredients (no limit)
+7. For shopping suggestions, ONLY suggest ingredients that will unlock cocktails with CURRENT ingredients
+8. Show ALL cocktails that can be made (no limit)
 9. Include COMPLETE recipe details
-10. Minor ingredients (egg white, bitters, salt rim) are OPTIONAL - don't block cocktail if missing
+10. Check EVERY cocktail thoroughly before suggesting
 
 BRAND RECOGNITION - BE SMART:
 Common brands and what they are:
-- Jack Daniels / Jack Daniel's = whiskey (bourbon)
-- Jim Beam = whiskey (bourbon)  
+- Jack Daniels / Jack Daniel's = whiskey
+- Jim Beam = whiskey
 - Johnnie Walker = whisky (scotch)
+- Jameson = whiskey (irish)
 - Bombay / Bombay Sapphire = gin
 - Tanqueray = gin
 - Beefeater = gin
@@ -42,114 +146,56 @@ Common brands and what they are:
 - Jose Cuervo = tequila
 - Patron = tequila
 - Olmeca = tequila
-- Schweppes = can be tonic water OR ginger ale OR soda water (check context)
-- Kinley = tonic water (Indian Ocean brand)
+- Schweppes = tonic water (unless specified otherwise)
+- Kinley = tonic water
 - Coca-Cola / Coke = cola
 - Pepsi = cola
 - Sprite / 7UP = lemon-lime soda (NOT soda water)
 - Canada Dry = ginger ale
-- Jack Daniel's Honey = honey whiskey liqueur
-- Jägermeister = herbal liqueur
-- Baileys = Irish cream liqueur
+- Baileys = Irish cream (can replace cream in some cocktails)
 - Kahlua = coffee liqueur
-- Malibu = coconut rum
-- Aperol = aperitif (for Aperol Spritz)
 - Campari = bitter liqueur
-- Martini = vermouth brand
-- Cinzano = vermouth brand
+- Aperol = aperitif
+- Martini / Cinzano = vermouth
 - Cointreau = triple sec (premium)
-- Grand Marnier = orange liqueur
+- Grand Marnier = orange liqueur (can replace triple sec)
 
-SMART INTERPRETATION:
-- "whisky" or any whiskey brand = user has whiskey
-- "gin" or any gin brand = user has gin  
-- "vodka" or "wódka" or any vodka brand = user has vodka
-- "rum" or any rum brand = user has rum
-- "tonic" or "tonik" or "Kinley" = user has tonic water
-- "wermut" or "vermouth" or "Martini" or "Cinzano" = user has vermouth
-- "campari" = user has Campari
-- "baileys" = user has Irish cream
-- "kahlua" or "kahluá" = user has coffee liqueur
-- "triple sec" or "cointreau" = user has triple sec
-- "miód" or "honey" = user has honey
+INGREDIENT MAPPING:
+- "whisky" or any whiskey brand → has whiskey
+- "gin" or any gin brand → has gin
+- "vodka" or "wódka" or any vodka brand → has vodka
+- "rum" or any rum brand → has rum
+- "tonic" or "tonik" or "Kinley" → has tonic water
+- "wermut" or "vermouth" or "Martini" or "Cinzano" → has vermouth
+- "campari" → has Campari
+- "baileys" → has Irish cream (can work as cream)
+- "kahlua" or "kahluá" → has coffee liqueur
+- "triple sec" or "cointreau" → has triple sec
+- "miód" or "honey" → has honey
+- "cytryna" or "lemon" → has lemon juice
+- "limonka" or "lime" → has lime juice
+- "cukier" or "sugar" → has simple syrup
+- "mięta" or "mint" → has fresh mint
+- "bazylia" or "basil" → has fresh basil
+- "mleko" or "milk" or "śmietana" or "cream" → has cream/milk
+- "woda gazowana" or "soda water" → has soda water
+- "bitter" or "bitters" or "angostura" → has bitters
 
-CRITICAL FILTERING RULES:
-1. IGNORE ALL non-cocktail items:
-   - Furniture (krzesło, stół, okno, wersalka, kanapa, fotel, łóżko)
-   - Food not used in cocktails (kiełbasa, kaszanka, chleb, ser, mięso)
-   - Random objects (telefon, telewizor, samochód, rower)
-   - Clothing (spodnie, koszula, buty)
-2. ONLY ACCEPT cocktail-related ingredients:
-   - Spirits: whisky, gin, rum, vodka, tequila, etc.
-   - Mixers: cola, tonic, soda water, ginger beer, ginger ale
-   - Juices: lemon, lime, orange, pineapple, cranberry, grapefruit
-   - Herbs/garnish: mięta (mint), bazylia (basil), ogórek (cucumber)
-   - Syrups/sweeteners: sugar, honey, grenadine, maple syrup
-   - Liqueurs: triple sec, cointreau, campari, vermouth, baileys, kahlua
-   - Others: milk, cream, coffee, egg white
-3. Filter out everything else silently
+CRITICAL COCKTAIL REQUIREMENTS:
+Check ALL ingredients before suggesting any cocktail or shopping item!
 
-INGREDIENT INTERPRETATION - THIS IS CRITICAL:
-- cytryna/lemon = lemon juice IS AVAILABLE
-- limonka/lime = lime juice IS AVAILABLE
-- cukier/sugar = simple syrup IS AVAILABLE
-- pomarańcza/orange = orange juice IS AVAILABLE
-- grejpfrut/grapefruit = grapefruit juice IS AVAILABLE
-- woda gazowana/soda water/sparkling water = soda water IS AVAILABLE
-- bazylia/basil = fresh basil IS AVAILABLE
-- mięta/mint = fresh mint IS AVAILABLE
-- mleko/milk = milk IS AVAILABLE
-- Always assume juice/syrup form unless specifically stated otherwise
+SHOPPING LOGIC - BE EXTREMELY CAREFUL:
+1. NEVER suggest an ingredient if user is missing multiple other ingredients for that cocktail
+2. Only suggest ingredients that unlock cocktails with CURRENT ingredients
+3. Check the COMPLETE recipe before any suggestion
+4. Maximum 2 shopping suggestions
 
-CRITICAL COCKTAIL CHECKS:
-- Whiskey Sour: whiskey + lemon + sugar (egg white OPTIONAL)
-- Gin Sour: gin + lemon + sugar (egg white OPTIONAL)
-- Tom Collins: gin + lemon + sugar + soda water (ALL required)
-- Gin & Tonic: gin + tonic water
-- Cuba Libre: rum + cola + lime (ALL required)
-- Mojito: rum + lime + sugar + mint + soda water (ALL required)
-- Margarita: tequila + triple sec + lime (ALL required, salt rim OPTIONAL)
-- Negroni: gin + campari + vermouth (ALL required)
-- White Russian: vodka + kahlua + cream/milk (ALL required)
-- Black Russian: vodka + kahlua
-- Gin Basil Smash: gin + lemon + sugar + basil (ALL required)
-- Whiskey Honey: whiskey + honey + lemon (ALL required)
-- Aperol Spritz: aperol + prosecco/sparkling wine + soda water (ALL required)
-
-SHOPPING SUGGESTIONS - BE EXTREMELY SMART:
-Before suggesting ANY ingredient, check:
-1. Does user have ALL OTHER required ingredients for the cocktail?
-2. Will this ONE purchase actually unlock a cocktail?
-3. Is it a sensible suggestion based on what they already have?
-
-NEVER suggest:
-- Triple sec if no tequila (for Margarita)
-- Mint if no rum, lime, sugar AND soda (for Mojito) 
-- Basil if no gin, lemon AND sugar (for Gin Basil Smash)
-- Any ingredient that requires multiple other missing ingredients
-
-GOOD suggestions:
-- If has gin + lemon + sugar → suggest soda water (unlocks Tom Collins)
-- If has gin + campari → suggest vermouth (unlocks Negroni)
-- If has vodka + kahlua → suggest milk/cream (unlocks White Russian)
-- If has gin + lemon + sugar → suggest basil (unlocks Gin Basil Smash)
-
-CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
-- Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
-- Gin Sour: gin 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
-- Tom Collins: gin 50ml, lemon juice 25ml, simple syrup 15ml, soda water top
-- Gin & Tonic: gin 50ml, tonic water 150ml
-- Cuba Libre: rum 50ml, cola 120ml, lime juice 10ml
-- Mojito: white rum 50ml, lime juice 30ml, sugar 2 tsp, mint 10-12 leaves, soda water top
-- Margarita: tequila 50ml, triple sec 30ml, lime juice 20ml
-- Negroni: gin 30ml, campari 30ml, sweet vermouth 30ml
-- Old Fashioned: whiskey 60ml, sugar cube 1, bitters 2 dash
-- Moscow Mule: vodka 50ml, lime juice 15ml, ginger beer 120ml
-- White Russian: vodka 40ml, kahlua 20ml, heavy cream 20ml
-- Black Russian: vodka 50ml, kahlua 25ml
-- Gin Basil Smash: gin 60ml, lemon juice 30ml, simple syrup 20ml, basil 8-10 leaves
-- Aperol Spritz: aperol 60ml, prosecco 90ml, soda water splash
-- Whiskey Honey: whiskey 50ml, honey 20ml, lemon juice 20ml, hot water 30ml
+Example checks:
+- Has cola only → DON'T suggest rum (also needs lime for Cuba Libre)
+- Has rum + cola → DO suggest lime (completes Cuba Libre)
+- Has gin + lemon + sugar → DO suggest basil (completes Gin Basil Smash)
+- Has gin + campari → DO suggest vermouth (completes Negroni)
+- Has vodka + kahlua → DO suggest cream/milk (completes White Russian)
 
 OUTPUT FORMAT:
 {
@@ -179,7 +225,7 @@ OUTPUT FORMAT:
     {
       "name": "Cocktail name",
       "nameEn": "English name",
-      "missingIngredient": "What's missing (only ESSENTIAL ingredients)",
+      "missingIngredient": "What's missing (only if ONE ingredient missing)",
       "description": "Description",
       "category": "classic",
       "ingredients": [full ingredient list],
@@ -194,25 +240,221 @@ OUTPUT FORMAT:
     {
       "ingredient": "Item to buy",
       "unlocksCount": number,
-      "priority": "high|medium|low", 
+      "priority": "high|medium|low",
       "reason": "Why recommended in requested language",
-      "newCocktails": ["cocktail1", "cocktail2", "cocktail3"]
+      "newCocktails": ["cocktail1", "cocktail2"]
     }
   ]
 }
 
-CRITICAL EXAMPLES:
-- If user has "Bombay, whisky, cola, tonic, cukier, cytryna, campari, wermut":
-  CAN MAKE: Whiskey Sour, Gin Sour, Gin & Tonic, Negroni
-  SUGGEST: limonka (for Cuba Libre), bazylia (for Gin Basil Smash)
-  DON'T SUGGEST: triple sec (no tequila), mint (no rum)
+REMEMBER: 
+- Check EVERY ingredient requirement
+- NEVER suggest ingredients that won't unlock anything
+- Be honest about what can be made
+- Maximum 2 shopping suggestions`;
 
-- If user has only "cola, rum":
-  CAN'T MAKE: anything
-  ALMOST: Cuba Libre (missing lime)
-  SUGGEST: limonka (unlocks Cuba Libre)
+// Helper function to normalize ingredient names
+function normalizeIngredient(ing) {
+  const lower = ing.toLowerCase().trim();
+  
+  // Brand to ingredient mapping
+  const brandMap = {
+    // Whiskey brands
+    'jack daniels': 'whisky',
+    'jack daniel\'s': 'whisky',
+    'jim beam': 'whisky',
+    'johnnie walker': 'whisky',
+    'jameson': 'whisky',
+    'makers mark': 'whisky',
+    'crown royal': 'whisky',
+    'chivas': 'whisky',
+    'ballantines': 'whisky',
+    
+    // Gin brands
+    'bombay': 'gin',
+    'bombay sapphire': 'gin',
+    'tanqueray': 'gin',
+    'beefeater': 'gin',
+    'gordon\'s': 'gin',
+    'gordons': 'gin',
+    'hendricks': 'gin',
+    'hendrick\'s': 'gin',
+    
+    // Vodka brands
+    'absolut': 'vodka',
+    'grey goose': 'vodka',
+    'smirnoff': 'vodka',
+    'stolichnaya': 'vodka',
+    'belvedere': 'vodka',
+    'finlandia': 'vodka',
+    'wyborowa': 'vodka',
+    
+    // Rum brands
+    'bacardi': 'rum',
+    'captain morgan': 'rum',
+    'havana club': 'rum',
+    'malibu': 'coconut rum',
+    'kraken': 'rum',
+    
+    // Tequila brands
+    'jose cuervo': 'tequila',
+    'patron': 'tequila',
+    'olmeca': 'tequila',
+    'sauza': 'tequila',
+    
+    // Mixers
+    'kinley': 'tonic',
+    'schweppes': 'tonic',
+    'coca-cola': 'cola',
+    'coca cola': 'cola',
+    'coke': 'cola',
+    'pepsi': 'cola',
+    'sprite': 'lemon-lime soda',
+    '7up': 'lemon-lime soda',
+    '7 up': 'lemon-lime soda',
+    'canada dry': 'ginger ale',
+    
+    // Liqueurs
+    'baileys': 'cream',
+    'kahlua': 'kahlua',
+    'kahluá': 'kahlua',
+    'cointreau': 'triple sec',
+    'grand marnier': 'triple sec',
+    'martini': 'vermouth',
+    'cinzano': 'vermouth',
+    
+    // Polish typos
+    'łiski': 'whisky',
+    'wisky': 'whisky',
+    'wiskey': 'whisky',
+    'dzin': 'gin',
+    'dżin': 'gin',
+    'wodka': 'vodka',
+    'wódka': 'vodka',
+    'liomka': 'lime',
+    'cytyna': 'lemon',
+    'cukir': 'sugar',
+    'minta': 'mint',
+    'mieta': 'mint',
+    'ogurek': 'cucumber',
+    'bazylka': 'basil',
+    'kola': 'cola',
+    'tonik': 'tonic'
+  };
+  
+  // Check if it's a known brand
+  for (const [brand, ingredient] of Object.entries(brandMap)) {
+    if (lower.includes(brand)) {
+      return ingredient;
+    }
+  }
+  
+  // Direct ingredient mapping
+  const ingredientMap = {
+    'cytryna': 'lemon',
+    'limonka': 'lime',
+    'cukier': 'sugar',
+    'woda gazowana': 'soda water',
+    'mięta': 'mint',
+    'bazylia': 'basil',
+    'mleko': 'cream',
+    'śmietana': 'cream',
+    'śmietanka': 'cream',
+    'miód': 'honey',
+    'wermut': 'vermouth',
+    'bitter': 'bitters',
+    'angostura': 'bitters',
+    'żurawina': 'cranberry',
+    'espresso': 'espresso',
+    'kawa': 'espresso',
+    'prosecco': 'prosecco',
+    'szampan': 'prosecco'
+  };
+  
+  return ingredientMap[lower] || lower;
+}
 
-REMEMBER: Be smart about brands, check ALL ingredients before suggestions!`;
+// Helper function to check if user has an ingredient
+function hasIngredient(userIngredients, required) {
+  const normalizedUser = userIngredients.map(ing => normalizeIngredient(ing));
+  
+  // Special cases
+  if (required === 'cream') {
+    return normalizedUser.includes('cream') || 
+           normalizedUser.includes('baileys') || 
+           normalizedUser.includes('milk');
+  }
+  
+  if (required === 'soda water') {
+    return normalizedUser.includes('soda water') || 
+           normalizedUser.includes('sparkling water');
+  }
+  
+  return normalizedUser.includes(required);
+}
+
+// Check what cocktails can be made
+function checkCocktails(userIngredients) {
+  const canMake = [];
+  const almostCanMake = [];
+  
+  for (const [cocktailName, recipe] of Object.entries(COCKTAIL_RECIPES)) {
+    const missingRequired = [];
+    
+    // Check all required ingredients
+    for (const req of recipe.required) {
+      if (!hasIngredient(userIngredients, req)) {
+        missingRequired.push(req);
+      }
+    }
+    
+    if (missingRequired.length === 0) {
+      canMake.push(cocktailName);
+    } else if (missingRequired.length === 1) {
+      almostCanMake.push({
+        cocktail: cocktailName,
+        missing: missingRequired[0]
+      });
+    }
+    // If missing 2+ ingredients, don't include
+  }
+  
+  return { canMake, almostCanMake };
+}
+
+// Generate smart shopping suggestions
+function generateShoppingSuggestions(userIngredients, almostCanMake) {
+  const suggestions = [];
+  const ingredientCount = {};
+  
+  // Count how many cocktails each missing ingredient would unlock
+  for (const item of almostCanMake) {
+    const ing = item.missing;
+    if (!ingredientCount[ing]) {
+      ingredientCount[ing] = {
+        count: 0,
+        cocktails: []
+      };
+    }
+    ingredientCount[ing].count++;
+    ingredientCount[ing].cocktails.push(item.cocktail);
+  }
+  
+  // Sort by unlock count
+  const sorted = Object.entries(ingredientCount)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 2); // Max 2 suggestions
+  
+  for (const [ingredient, data] of sorted) {
+    suggestions.push({
+      ingredient,
+      unlocksCount: data.count,
+      cocktails: data.cocktails
+    });
+  }
+  
+  return suggestions;
+}
 
 module.exports = async (req, res) => {
   try {
@@ -222,156 +464,77 @@ module.exports = async (req, res) => {
     console.log(`🍹 MyBar request - Ingredients: ${ingredients}`);
     console.log(`🌍 Language: ${requestLanguage}`);
     
-    // Pre-process ingredients to normalize common typos AND brands
-    const normalizedIngredients = ingredients.map(ing => {
-      const lower = ing.toLowerCase().trim();
-      
-      // Brand mapping - keep original but help AI understand
-      const brandMap = {
-        'jack daniels': 'whisky',
-        'jack daniel\'s': 'whisky',
-        'jack daniels miodowy': 'honey whiskey liqueur',
-        'jack daniel\'s honey': 'honey whiskey liqueur',
-        'jim beam': 'whisky',
-        'johnnie walker': 'whisky',
-        'bombay': 'gin',
-        'bombay sapphire': 'gin',
-        'tanqueray': 'gin',
-        'beefeater': 'gin',
-        'gordon\'s': 'gin',
-        'absolut': 'vodka',
-        'grey goose': 'vodka',
-        'smirnoff': 'vodka',
-        'stolichnaya': 'vodka',
-        'bacardi': 'rum',
-        'captain morgan': 'rum',
-        'havana club': 'rum',
-        'jose cuervo': 'tequila',
-        'patron': 'tequila',
-        'olmeca': 'tequila',
-        'kinley': 'tonic water',
-        'schweppes': 'tonic water',
-        'coca-cola': 'cola',
-        'coca cola': 'cola',
-        'coke': 'cola',
-        'pepsi': 'cola',
-        'sprite': 'lemon-lime soda',
-        '7up': 'lemon-lime soda',
-        'canada dry': 'ginger ale'
-      };
-      
-      // Check brand mapping first but keep original
-      for (const [brand, ingredient] of Object.entries(brandMap)) {
-        if (lower.includes(brand)) {
-          return ing; // Keep original for AI to understand context
-        }
-      }
-      
-      // Common typos mapping
-      const typoMap = {
-        'łiski': 'whisky',
-        'wisky': 'whisky',
-        'wiskey': 'whisky',
-        'dzin': 'gin',
-        'dżin': 'gin',
-        'wodka': 'vodka',
-        'wódka': 'vodka',
-        'liomka': 'limonka',
-        'cytyna': 'cytryna',
-        'cukir': 'cukier',
-        'minta': 'mięta',
-        'mieta': 'mięta',
-        'ogurek': 'ogórek',
-        'bazylka': 'bazylia',
-        'kola': 'cola',
-        'tonik': 'tonic'
-      };
-      
-      return typoMap[lower] || ing;
-    });
+    // First, use our logic to check what's possible
+    const { canMake, almostCanMake } = checkCocktails(ingredients);
+    const shoppingSuggestions = generateShoppingSuggestions(ingredients, almostCanMake);
+    
+    console.log(`📊 Logic check - Can make: ${canMake.length}, Almost: ${almostCanMake.length}`);
+    
+    // Build context for AI
+    const contextInfo = {
+      canMake: canMake.join(', '),
+      almostInfo: almostCanMake.map(item => `${item.cocktail} (needs ${item.missing})`).join(', '),
+      shopping: shoppingSuggestions.map(s => `${s.ingredient} (unlocks ${s.cocktails.join(', ')})`).join(', ')
+    };
     
     const userPrompt = requestLanguage === 'pl'
-      ? `Mam te składniki: ${normalizedIngredients.join(', ')}
+      ? `Mam te składniki: ${ingredients.join(', ')}
 
-KRYTYCZNE ZASADY INTERPRETACJI:
-- IGNORUJ wszystkie przedmioty niezwiązane z koktajlami (meble, jedzenie, ubrania, przedmioty)
-- Akceptuj TYLKO składniki koktajlowe: alkohole, miksery, soki, zioła, likiery
-- ROZPOZNAWAJ MARKI: 
-  - "Bombay" = gin
-  - "Jack Daniels" = whisky
-  - "Kinley" = tonic water (NIE woda gazowana!)
-  - "Baileys" = likier Irish cream
-  - "Kahlua" = likier kawowy
-  - "Campari" = bitter do Negroni
-  - "Martini"/"Cinzano" = wermut
-- "cytryna" = MAM sok z cytryny
-- "limonka" = MAM sok z limonki
-- "cukier" = MAM syrop cukrowy
-- "miód" = MAM miód płynny
+KONTEKST (użyj tej wiedzy):
+- Mogę zrobić: ${contextInfo.canMake || 'nic'}
+- Prawie mogę (brakuje 1): ${contextInfo.almostInfo || 'nic'}
+- Sugestie zakupów: ${contextInfo.shopping || 'brak'}
 
-SPRAWDŹ DOKŁADNIE WSZYSTKIE KOKTAJLE:
-1. Whiskey Sour: whisky + cytryna + cukier
-2. Gin Sour: gin + cytryna + cukier
-3. Gin & Tonic: gin + tonic
-4. Negroni: gin + campari + wermut (WSZYSTKIE 3!)
-5. White Russian: wódka + kahlua + mleko/śmietana
-6. Black Russian: wódka + kahlua
-7. Tom Collins: gin + cytryna + cukier + woda gazowana (WSZYSTKIE 4!)
-8. Cuba Libre: rum + cola + limonka (WSZYSTKIE 3!)
-9. Gin Basil Smash: gin + cytryna + cukier + bazylia (WSZYSTKIE 4!)
+KRYTYCZNE ZASADY:
+1. Pokazuj TYLKO koktajle które NAPRAWDĘ można zrobić (mam WSZYSTKIE składniki)
+2. W sekcji "prawie możliwe" tylko gdy brakuje JEDNEGO składnika
+3. NIE pokazuj koktajli gdzie brakuje 2+ składników
+4. Sugestie zakupów - TYLKO składniki które odblokują koktajle z obecnymi składnikami
+5. Sprawdź DOKŁADNIE każdy koktajl przed dodaniem
 
-SUGESTIE ZAKUPÓW - MYŚL LOGICZNIE:
-- NIGDY nie sugeruj triple sec jeśli nie ma tequili!
-- NIGDY nie sugeruj mięty jeśli nie ma rumu, limonki, cukru I wody gazowanej!
-- Sugeruj TYLKO składniki które odblokują koktajl przy obecnych składnikach
-- Przykład: jeśli ma gin + cytryna + cukier → sugeruj bazylię (odblokuje Gin Basil Smash)
-- Przykład: jeśli ma gin + campari → sugeruj wermut (odblokuje Negroni)
+Składniki które MAM:
+${ingredients.join(', ')}
 
-Podaj WSZYSTKIE koktajle które NAPRAWDĘ można zrobić.
-NIE OGRANICZAJ liczby koktajli - pokaż wszystkie możliwe.
-W shoppingList maksymalnie 2 najlepsze propozycje.
+ROZPOZNAWAJ MARKI:
+- Bombay = gin
+- Jack Daniels = whisky
+- Kinley = tonic
+- Baileys = śmietanka/irish cream
+- Kahlua = likier kawowy
+- itd.
+
+Podaj WSZYSTKIE koktajle które mogę zrobić.
+Maksymalnie 2 sugestie zakupów.
 Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
-      : `I have these ingredients: ${normalizedIngredients.join(', ')}
+      : `I have these ingredients: ${ingredients.join(', ')}
 
-CRITICAL INTERPRETATION RULES:
-- IGNORE all non-cocktail items (furniture, food, clothes, objects)
-- Accept ONLY cocktail ingredients: spirits, mixers, juices, herbs, liqueurs
-- RECOGNIZE BRANDS:
-  - "Bombay" = gin
-  - "Jack Daniels" = whiskey
-  - "Kinley" = tonic water (NOT soda water!)
-  - "Baileys" = Irish cream liqueur
-  - "Kahlua" = coffee liqueur
-  - "Campari" = bitter for Negroni
-  - "Martini"/"Cinzano" = vermouth
-- "lemon" = I HAVE lemon juice
-- "lime" = I HAVE lime juice
-- "sugar" = I HAVE simple syrup
-- "honey" = I HAVE liquid honey
+CONTEXT (use this knowledge):
+- Can make: ${contextInfo.canMake || 'nothing'}
+- Almost can make (missing 1): ${contextInfo.almostInfo || 'nothing'}
+- Shopping suggestions: ${contextInfo.shopping || 'none'}
 
-CHECK ALL COCKTAILS CAREFULLY:
-1. Whiskey Sour: whiskey + lemon + sugar
-2. Gin Sour: gin + lemon + sugar
-3. Gin & Tonic: gin + tonic
-4. Negroni: gin + campari + vermouth (ALL 3!)
-5. White Russian: vodka + kahlua + milk/cream
-6. Black Russian: vodka + kahlua
-7. Tom Collins: gin + lemon + sugar + soda water (ALL 4!)
-8. Cuba Libre: rum + cola + lime (ALL 3!)
-9. Gin Basil Smash: gin + lemon + sugar + basil (ALL 4!)
+CRITICAL RULES:
+1. Show ONLY cocktails I can ACTUALLY make (have ALL ingredients)
+2. In "almost possible" section only when missing ONE ingredient
+3. DON'T show cocktails missing 2+ ingredients
+4. Shopping suggestions - ONLY ingredients that unlock cocktails with current ingredients
+5. Check THOROUGHLY each cocktail before adding
 
-SHOPPING SUGGESTIONS - THINK LOGICALLY:
-- NEVER suggest triple sec if no tequila!
-- NEVER suggest mint if no rum, lime, sugar AND soda water!
-- Only suggest ingredients that unlock cocktails with current ingredients
-- Example: if has gin + lemon + sugar → suggest basil (unlocks Gin Basil Smash)
-- Example: if has gin + campari → suggest vermouth (unlocks Negroni)
+Ingredients I HAVE:
+${ingredients.join(', ')}
 
-List ALL cocktails I can ACTUALLY make.
-NO LIMIT on cocktails - show all possible.
-Maximum 2 items in shoppingList.
+RECOGNIZE BRANDS:
+- Bombay = gin
+- Jack Daniels = whiskey
+- Kinley = tonic
+- Baileys = cream/irish cream
+- Kahlua = coffee liqueur
+- etc.
+
+List ALL cocktails I can make.
+Maximum 2 shopping suggestions.
 All text in English.
 
 RETURN ONLY VALID JSON!`;
@@ -406,416 +569,112 @@ RETURN ONLY VALID JSON!`;
     try {
       suggestions = JSON.parse(cleanedResponse);
       console.log('✅ Successfully parsed MyBar JSON');
-      console.log(`📊 Results: ${suggestions.cocktails?.length || 0} available, ${suggestions.almostPossible?.length || 0} missing 1`);
       
-      // Process cocktails section
+      // Validate AI response against our logic
       if (suggestions.cocktails) {
-        suggestions.cocktails = suggestions.cocktails.map(cocktail => {
-          // Ensure all required fields
-          const processed = {
-            ...cocktail,
-            available: true,
-            category: cocktail.category || 'classic',
-            method: cocktail.method || 'stirred',
-            ice: cocktail.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
-            glassType: cocktail.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
-            garnish: cocktail.garnish || '',
-            history: cocktail.history || '',
-            instructions: cocktail.instructions || [
-              requestLanguage === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
-            ]
-          };
-          
-          // Fix glass types for Polish
-          if (requestLanguage === 'pl') {
-            processed.glassType = processed.glassType
-              .replace('szklanka wysokiej', 'szklanka highball')
-              .replace('kieliszek do martini', 'kieliszek martini');
-          }
-          
-          return processed;
+        // Double-check each cocktail
+        suggestions.cocktails = suggestions.cocktails.filter(cocktail => {
+          const cocktailName = cocktail.nameEn || cocktail.name;
+          return canMake.includes(cocktailName) || 
+                 canMake.some(name => cocktailName.toLowerCase().includes(name.toLowerCase()));
         });
       }
       
-      // Process almostPossible section
-      if (suggestions.almostPossible && Array.isArray(suggestions.almostPossible)) {
-        suggestions.almostPossible = suggestions.almostPossible.map(item => ({
-          ...item,
-          nameEn: item.nameEn || item.name,
-          ingredients: item.ingredients || [],
-          instructions: item.instructions || [],
-          method: item.method || 'stirred',
-          ice: item.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
-          glassType: item.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
-          garnish: item.garnish || ''
+      // Process and ensure all fields
+      if (suggestions.cocktails) {
+        suggestions.cocktails = suggestions.cocktails.map(cocktail => ({
+          ...cocktail,
+          available: true,
+          category: cocktail.category || 'classic',
+          method: cocktail.method || 'stirred',
+          ice: cocktail.ice || (requestLanguage === 'pl' ? 'kostki' : 'cubed'),
+          glassType: cocktail.glassType || (requestLanguage === 'pl' ? 'szklanka' : 'glass'),
+          garnish: cocktail.garnish || '',
+          history: cocktail.history || '',
+          instructions: cocktail.instructions || [
+            requestLanguage === 'pl' ? 'Wymieszaj składniki' : 'Mix ingredients'
+          ]
         }));
-      } else if (suggestions.almostPossible && !Array.isArray(suggestions.almostPossible)) {
-        suggestions.almostPossible = [suggestions.almostPossible];
-      } else {
-        suggestions.almostPossible = [];
       }
       
     } catch (e) {
-      console.error('MyBar parse error:', e);
+      console.error('MyBar parse error, using fallback:', e);
       
-      // Enhanced fallback with better brand recognition
-      const ingredientsList = normalizedIngredients.map(i => i.toLowerCase());
-      
-      // Better ingredient detection
-      const hasWhisky = ingredientsList.some(i => 
-        i.includes('whisk') || i.includes('jack daniel') || i.includes('jim beam') || 
-        i.includes('johnnie walker') || i.includes('jameson')
-      );
-      const hasGin = ingredientsList.some(i => 
-        i.includes('gin') || i.includes('bombay') || i.includes('tanqueray') ||
-        i.includes('beefeater') || i.includes('gordon')
-      );
-      const hasTonic = ingredientsList.some(i => 
-        i.includes('tonic') || i.includes('tonik') || i.includes('kinley') || 
-        (i.includes('schweppes') && !i.includes('soda'))
-      );
-      const hasVodka = ingredientsList.some(i => 
-        i.includes('vodka') || i.includes('wódka') || i.includes('absolut') || 
-        i.includes('smirnoff') || i.includes('grey goose') || i.includes('stolichnaya')
-      );
-      const hasRum = ingredientsList.some(i => 
-        i.includes('rum') && !i.includes('kahlua') || i.includes('bacardi') || 
-        i.includes('captain morgan') || i.includes('havana')
-      );
-      const hasCola = ingredientsList.some(i => 
-        i.includes('cola') || i.includes('coke') || i.includes('pepsi') || i.includes('coca')
-      );
-      const hasSugar = ingredientsList.some(i => 
-        i.includes('cukier') || i.includes('sugar') || i.includes('syrop cukrowy')
-      );
-      const hasLemon = ingredientsList.some(i => 
-        i.includes('cytryn') || i.includes('lemon')
-      );
-      const hasLime = ingredientsList.some(i => 
-        i.includes('limonk') || i.includes('lime')
-      );
-      const hasSoda = ingredientsList.some(i => 
-        i.includes('woda gazowana') || i.includes('soda water') || 
-        i.includes('sparkling water') || (i.includes('schweppes') && i.includes('soda'))
-      );
-      const hasCampari = ingredientsList.some(i => i.includes('campari'));
-      const hasVermouth = ingredientsList.some(i => 
-        i.includes('wermut') || i.includes('vermouth') || i.includes('martini') || 
-        i.includes('cinzano')
-      );
-      const hasKahlua = ingredientsList.some(i => 
-        i.includes('kahlua') || i.includes('kahluá') || i.includes('kalua')
-      );
-      const hasBaileys = ingredientsList.some(i => 
-        i.includes('bailey') || i.includes('irish cream')
-      );
-      const hasMilk = ingredientsList.some(i => 
-        i.includes('mleko') || i.includes('milk') || i.includes('śmietan') || 
-        i.includes('cream')
-      );
-      const hasBasil = ingredientsList.some(i => 
-        i.includes('bazyl') || i.includes('basil')
-      );
-      const hasMint = ingredientsList.some(i => 
-        i.includes('mięt') || i.includes('mint') || i.includes('mient')
-      );
-      const hasHoney = ingredientsList.some(i => 
-        i.includes('miód') || i.includes('honey')
-      );
-      
+      // Complete fallback logic
       const fallbackCocktails = [];
       const fallbackAlmostPossible = [];
-      const shoppingList = [];
+      const fallbackShoppingList = [];
       
-      // Check for Gin & Tonic
-      if (hasGin && hasTonic) {
+      // Build cocktails from our logic
+      for (const cocktailName of canMake) {
+        const recipe = COCKTAIL_RECIPES[cocktailName];
+        if (!recipe) continue;
+        
+        // Build proper cocktail object based on recipe
         fallbackCocktails.push({
-          name: "Gin & Tonic",
-          nameEn: "Gin & Tonic",
+          name: cocktailName,
+          nameEn: cocktailName,
           available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny orzeźwiający drink" : "Classic refreshing drink",
-          category: "highball",
-          ingredients: [
-            {name: "Gin", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Tonik" : "Tonic water", amount: "150", unit: "ml"}
+          description: requestLanguage === 'pl' ? 'Klasyczny koktajl' : 'Classic cocktail',
+          category: recipe.category,
+          ingredients: [], // Would need full recipe details
+          instructions: [
+            requestLanguage === 'pl' ? 'Przygotuj według klasycznego przepisu' : 'Prepare according to classic recipe'
           ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj gin", "Dopełnij tonikiem", "Delikatnie zamieszaj"]
-            : ["Fill glass with ice", "Add gin", "Top with tonic", "Stir gently"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Plasterek limonki lub cytryny" : "Lime or lemon slice",
-          history: ""
+          glassType: requestLanguage === 'pl' ? 'odpowiednia szklanka' : 'appropriate glass',
+          method: 'stirred',
+          ice: requestLanguage === 'pl' ? 'kostki' : 'cubed',
+          garnish: '',
+          history: ''
         });
       }
       
-      // Check for Whiskey Sour
-      if (hasWhisky && hasSugar && hasLemon) {
-        fallbackCocktails.push({
-          name: "Whiskey Sour",
-          nameEn: "Whiskey Sour",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny kwaśny koktajl" : "Classic sour cocktail",
-          category: "sour",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "60", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "30", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki rocks", "Udekoruj plasterkiem cytryny"]
-            : ["Shake all ingredients with ice", "Strain into rocks glass", "Garnish with lemon wheel"],
-          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
-          method: "shaken",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Plasterek cytryny" : "Lemon wheel",
-          history: ""
-        });
-      }
-      
-      // Check for Gin Sour
-      if (hasGin && hasSugar && hasLemon) {
-        fallbackCocktails.push({
-          name: "Gin Sour",
-          nameEn: "Gin Sour",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający kwaśny koktajl" : "Refreshing sour cocktail",
-          category: "sour",
-          ingredients: [
-            {name: "Gin", amount: "60", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "30", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki coupe", "Udekoruj cytryną"]
-            : ["Shake all ingredients with ice", "Strain into coupe glass", "Garnish with lemon"],
-          glassType: requestLanguage === 'pl' ? "kieliszek coupe" : "coupe glass",
-          method: "shaken",
-          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
-          garnish: requestLanguage === 'pl' ? "Skórka cytryny" : "Lemon peel",
-          history: ""
-        });
-      }
-      
-      // Check for Negroni
-      if (hasGin && hasCampari && hasVermouth) {
-        fallbackCocktails.push({
-          name: "Negroni",
-          nameEn: "Negroni",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny włoski aperitif" : "Classic Italian aperitif",
-          category: "classic",
-          ingredients: [
-            {name: "Gin", amount: "30", unit: "ml"},
-            {name: "Campari", amount: "30", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Słodki wermut" : "Sweet vermouth", amount: "30", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Dodaj wszystkie składniki do szklanki z lodem", "Zamieszaj", "Udekoruj skórką pomarańczy"]
-            : ["Add all ingredients to glass with ice", "Stir", "Garnish with orange peel"],
-          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
-          method: "stirred",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Skórka pomarańczy" : "Orange peel",
-          history: ""
-        });
-      }
-      
-      // Check for White Russian
-      if (hasVodka && hasKahlua && (hasMilk || hasBaileys)) {
-        fallbackCocktails.push({
-          name: "White Russian",
-          nameEn: "White Russian",
-          available: true,
-          description: requestLanguage === 'pl' ? "Kremowy koktajl kawowy" : "Creamy coffee cocktail",
-          category: "classic",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "40", unit: "ml"},
-            {name: "Kahlua", amount: "20", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Śmietanka" : "Heavy cream", amount: "20", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Dodaj wódkę i kahlua do szklanki z lodem", "Delikatnie wlej śmietankę po łyżce"]
-            : ["Add vodka and kahlua to glass with ice", "Float cream on top"],
-          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: "",
-          history: ""
-        });
-      }
-      
-      // Check for Cuba Libre
-      if (hasRum && hasCola && hasLime) {
-        fallbackCocktails.push({
-          name: "Cuba Libre",
-          nameEn: "Cuba Libre",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny drink z rumem i colą" : "Classic rum and cola cocktail",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "120", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj rum i sok z limonki", "Dopełnij colą i delikatnie zamieszaj"]
-            : ["Fill glass with ice", "Add rum and lime juice", "Top with cola and stir gently"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Ćwiartka limonki" : "Lime wedge",
-          history: ""
-        });
-      } else if (hasRum && hasCola && !hasLime) {
+      // Build almost possible
+      for (const item of almostCanMake) {
         fallbackAlmostPossible.push({
-          name: "Cuba Libre",
-          nameEn: "Cuba Libre",
-          missingIngredient: requestLanguage === 'pl' ? "limonka" : "lime",
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl z rumem, colą i limonką" : "Refreshing cocktail with rum, cola and lime",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "120", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
-          ],
+          name: item.cocktail,
+          nameEn: item.cocktail,
+          missingIngredient: requestLanguage === 'pl' 
+            ? translateIngredient(item.missing, 'pl')
+            : item.missing,
+          description: requestLanguage === 'pl' ? 'Klasyczny koktajl' : 'Classic cocktail',
+          category: 'classic',
+          ingredients: [],
           instructions: [],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: ""
+          glassType: requestLanguage === 'pl' ? 'szklanka' : 'glass',
+          method: 'stirred',
+          ice: requestLanguage === 'pl' ? 'kostki' : 'cubed',
+          garnish: ''
         });
       }
       
-      // Check for Tom Collins
-      if (hasGin && hasLemon && hasSugar && hasSoda) {
-        fallbackCocktails.push({
-          name: "Tom Collins",
-          nameEn: "Tom Collins",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
-          category: "collins",
-          ingredients: [
-            {name: "Gin", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Dodaj gin, sok z cytryny i syrop do szklanki z lodem", "Dopełnij wodą gazowaną", "Delikatnie zamieszaj"]
-            : ["Add gin, lemon juice and syrup to glass with ice", "Top with soda water", "Stir gently"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Plasterek cytryny i wisienka" : "Lemon slice and cherry",
-          history: ""
-        });
-      } else if (hasGin && hasLemon && hasSugar && !hasSoda) {
-        fallbackAlmostPossible.push({
-          name: "Tom Collins",
-          nameEn: "Tom Collins",
-          missingIngredient: requestLanguage === 'pl' ? "woda gazowana" : "soda water",
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
-          category: "collins",
-          ingredients: [
-            {name: "Gin", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
-          ],
-          instructions: [],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: ""
+      // Build shopping list
+      for (const suggestion of shoppingSuggestions) {
+        fallbackShoppingList.push({
+          ingredient: requestLanguage === 'pl' 
+            ? translateIngredient(suggestion.ingredient, 'pl')
+            : suggestion.ingredient,
+          unlocksCount: suggestion.unlocksCount,
+          priority: suggestion.unlocksCount > 1 ? 'high' : 'medium',
+          reason: requestLanguage === 'pl'
+            ? `Odblokuje ${suggestion.cocktails.join(', ')}`
+            : `Unlocks ${suggestion.cocktails.join(', ')}`,
+          newCocktails: suggestion.cocktails
         });
       }
-      
-      // Smart shopping suggestions based on what user has
-      
-      // If has gin + lemon + sugar, suggest basil for Gin Basil Smash
-      if (hasGin && hasLemon && hasSugar && !hasBasil) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Bazylia" : "Basil",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz gin, cytrynę i cukier - dodaj tylko bazylię do Gin Basil Smash!"
-            : "You have gin, lemon and sugar - just add basil for Gin Basil Smash!",
-          newCocktails: ["Gin Basil Smash"]
-        });
-      }
-      
-      // If has gin + campari, suggest vermouth for Negroni
-      if (hasGin && hasCampari && !hasVermouth) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Wermut" : "Vermouth",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz gin i Campari - dodaj wermut do klasycznego Negroni!"
-            : "You have gin and Campari - add vermouth for classic Negroni!",
-          newCocktails: ["Negroni"]
-        });
-      }
-      
-      // If has vodka + kahlua, suggest milk/cream for White Russian
-      if (hasVodka && hasKahlua && !hasMilk && !hasBaileys) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Mleko lub śmietanka" : "Milk or cream",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz wódkę i Kahlua - dodaj mleko do White Russian!"
-            : "You have vodka and Kahlua - add milk for White Russian!",
-          newCocktails: ["White Russian"]
-        });
-      }
-      
-      // If has rum and cola but no lime, suggest lime
-      if (hasRum && hasCola && !hasLime) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz rum i colę - brakuje tylko limonki do Cuba Libre!"
-            : "You have rum and cola - just need lime for Cuba Libre!",
-          newCocktails: ["Cuba Libre"]
-        });
-      }
-      
-      // If has gin, lemon, sugar but no soda, suggest soda water
-      if (hasGin && hasLemon && hasSugar && !hasSoda) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz gin, cytrynę i cukier - brakuje tylko wody gazowanej do Tom Collins!"
-            : "You have gin, lemon and sugar - just need soda water for Tom Collins!",
-          newCocktails: ["Tom Collins"]
-        });
-      }
-      
-      // Limit to 2 suggestions only
-      shoppingList.splice(2);
-      
-      // Don't limit cocktails - show all possible!
       
       suggestions = {
         cocktails: fallbackCocktails,
         almostPossible: fallbackAlmostPossible,
-        shoppingList: shoppingList
+        shoppingList: fallbackShoppingList
       };
     }
 
-    // CRITICAL: Return data wrapped in 'data' property for consistency with other endpoints
+    // Final response formatting
     const responseData = {
       possibleDrinks: suggestions.cocktails || [],
       missingOneIngredient: (suggestions.almostPossible || [])
-        .filter(item => item && item.ingredients && item.ingredients.length > 0)
+        .filter(item => item && item.ingredients)
         .map(item => ({
           drink: {
             name: item.name,
@@ -842,7 +701,6 @@ RETURN ONLY VALID JSON!`;
       shoppingList: responseData.shoppingList.length
     });
 
-    // CRITICAL: Wrap response in 'data' property to match what frontend expects
     res.json({ data: responseData });
     
   } catch (error) {
@@ -850,3 +708,37 @@ RETURN ONLY VALID JSON!`;
     res.status(500).json({ error: error.message });
   }
 };
+
+// Helper function to translate ingredients
+function translateIngredient(ingredient, language) {
+  const translations = {
+    'lemon': 'cytryna',
+    'lime': 'limonka',
+    'sugar': 'cukier',
+    'mint': 'mięta',
+    'basil': 'bazylia',
+    'soda water': 'woda gazowana',
+    'tonic': 'tonik',
+    'cream': 'śmietanka',
+    'milk': 'mleko',
+    'honey': 'miód',
+    'vermouth': 'wermut',
+    'bitters': 'bitter',
+    'cranberry': 'żurawina',
+    'ginger beer': 'piwo imbirowe',
+    'triple sec': 'triple sec',
+    'espresso': 'espresso',
+    'prosecco': 'prosecco'
+  };
+  
+  if (language === 'pl') {
+    return translations[ingredient] || ingredient;
+  }
+  
+  // Reverse translation for en
+  const reverseTranslations = Object.fromEntries(
+    Object.entries(translations).map(([k, v]) => [v, k])
+  );
+  
+  return reverseTranslations[ingredient] || ingredient;
+}
