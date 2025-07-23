@@ -1,4 +1,23 @@
-const OpenAI = require('openai');
+const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails, their authentic recipes, AND brand names.
+
+IMPORTANT: Always check https://drinki.pl/drinki.html for comprehensive cocktail database!
+Use their recipes for accuracy and discover creative combinations based on user's ingredients.
+
+CRITICAL RULES:
+1. Use ONLY authentic classic recipes with correct proportions (check drinki.pl)
+2. Return ONLY valid JSON - no markdown, no extra text
+3. ALL text in requested language (pl/en)
+4. Never return empty ingredients arrays
+5. BE INTUITIVE - understand what users mean:
+   - "cytryna" = user HAS lemon juice (sok z cytryny)
+   - "limonka" = user HAS lime juice (sok z limonki)
+   - "cukier" = user HAS simple syrup (syrop cukrowy)
+   - Users don't need to specify "sok z" - assume juice is available
+6. Check EVERY cocktail thoroughly before suggesting
+7. NEVER suggest optional ingredients as purchases (bitters, egg white, garnishes)
+8. Show ALL cocktails that can be made (no limit)
+9. Include COMPLETE recipe details
+10. Be creative - check const OpenAI = require('openai');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,6 +29,95 @@ const COCKTAIL_RECIPES = {
     required: ['whisky', 'lemon', 'sugar'],
     optional: ['egg white'],
     category: 'sour'
+  'Mudslide': {
+    required: ['vodka', 'kahlua', 'baileys'],
+    optional: ['cream'],
+    category: 'creamy'
+  },
+  'B-52': {
+    required: ['kahlua', 'baileys', 'grand marnier'],
+    optional: [],
+    category: 'shot'
+  },
+  'Brandy Alexander': {
+    required: ['cognac', 'creme de cacao', 'cream'],
+    optional: [],
+    category: 'creamy'
+  },
+  'French 75': {
+    required: ['gin', 'lemon', 'sugar', 'champagne'],
+    optional: [],
+    category: 'champagne'
+  },
+  'Mimosa': {
+    required: ['champagne', 'orange'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Bellini': {
+    required: ['prosecco', 'peach'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Kamikaze': {
+    required: ['vodka', 'triple sec', 'lime'],
+    optional: [],
+    category: 'shot'
+  },
+  'Blue Lagoon': {
+    required: ['vodka', 'blue curacao', 'lemonade'],
+    optional: [],
+    category: 'tropical'
+  },
+  'Salty Dog': {
+    required: ['vodka', 'grapefruit'],
+    optional: ['salt'],
+    category: 'highball'
+  },
+  'Fuzzy Navel': {
+    required: ['vodka', 'peach schnapps', 'orange'],
+    optional: [],
+    category: 'sweet'
+  },
+  'Caipiroska': {
+    required: ['vodka', 'lime', 'sugar'],
+    optional: [],
+    category: 'classic'
+  },
+  'Sidecar': {
+    required: ['cognac', 'triple sec', 'lemon'],
+    optional: [],
+    category: 'classic'
+  },
+  'Whiskey Coke': {
+    required: ['whisky', 'cola'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Vodka Sprite': {
+    required: ['vodka', 'sprite'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Gin Lemonade': {
+    required: ['gin', 'lemonade'],
+    optional: ['lemon'],
+    category: 'highball'
+  },
+  'Baileys Coffee': {
+    required: ['baileys', 'coffee'],
+    optional: ['cream'],
+    category: 'hot'
+  },
+  'Irish Coffee': {
+    required: ['whisky', 'coffee', 'sugar', 'cream'],
+    optional: [],
+    category: 'hot'
+  },
+  'Jager Bomb': {
+    required: ['jagermeister', 'energy drink'],
+    optional: [],
+    category: 'shot'
   },
   'Gin Sour': {
     required: ['gin', 'lemon', 'sugar'],
@@ -594,7 +702,123 @@ function checkCocktails(userIngredients) {
           ice: requestLanguage === 'pl' ? "kostki" : "cubed",
           garnish: "",
           history: ""
+        // Check for Mudslide (with Baileys, Kahlua)
+      if (hasVodka && hasKahlua && hasBaileys) {
+        fallbackCocktails.push({
+          name: "Mudslide",
+          nameEn: "Mudslide",
+          available: true,
+          description: requestLanguage === 'pl' ? "Kremowy koktajl czekoladowy" : "Creamy chocolate cocktail",
+          category: "creamy",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "30", unit: "ml"},
+            {name: "Kahlua", amount: "30", unit: "ml"},
+            {name: "Baileys", amount: "30", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki", "Opcjonalnie: posyp czekoladą"]
+            : ["Shake all ingredients with ice", "Strain into glass", "Optional: dust with chocolate"],
+          glassType: requestLanguage === 'pl' ? "szklanka martini" : "martini glass",
+          method: "shaken",
+          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
+          garnish: requestLanguage === 'pl' ? "Wiórki czekolady" : "Chocolate shavings",
+          history: ""
         });
+      }
+      
+      // Check for B-52 shot
+      if (hasKahlua && hasBaileys) {
+        fallbackCocktails.push({
+          name: "B-52",
+          nameEn: "B-52",
+          available: true,
+          description: requestLanguage === 'pl' ? "Warstwowy shot" : "Layered shot",
+          category: "shot",
+          ingredients: [
+            {name: "Kahlua", amount: "20", unit: "ml"},
+            {name: "Baileys", amount: "20", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Likier pomarańczowy" : "Orange liqueur", amount: "20", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Wlej Kahlua do kieliszka", "Delikatnie dodaj Baileys po łyżce", "Dodaj likier pomarańczowy"]
+            : ["Pour Kahlua into shot glass", "Float Baileys on top", "Float orange liqueur on top"],
+          glassType: requestLanguage === 'pl' ? "kieliszek do shotów" : "shot glass",
+          method: requestLanguage === 'pl' ? "warstwowy" : "layered",
+          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
+          garnish: "",
+          history: ""
+        });
+      }
+      
+      // Check for Whiskey Coke
+      if (hasWhisky && hasCola) {
+        fallbackCocktails.push({
+          name: "Whiskey Coke",
+          nameEn: "Whiskey Coke",
+          available: true,
+          description: requestLanguage === 'pl' ? "Prosty klasyk" : "Simple classic",
+          category: "highball",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "50", unit: "ml"},
+            {name: "Cola", amount: "150", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj whisky", "Dopełnij colą"]
+            : ["Fill glass with ice", "Add whiskey", "Top with cola"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: "",
+          history: ""
+        });
+      }
+      
+      // Check for Old Fashioned (without bitters)
+      if (hasWhisky && hasSugar) {
+        fallbackCocktails.push({
+          name: "Old Fashioned",
+          nameEn: "Old Fashioned",
+          available: true,
+          description: requestLanguage === 'pl' ? "Klasyczny koktajl whisky" : "Classic whiskey cocktail",
+          category: "classic",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "60", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Kostka cukru" : "Sugar cube", amount: "1", unit: ""},
+            {name: requestLanguage === 'pl' ? "Woda" : "Water", amount: "5", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Umieść kostkę cukru w szklance", "Dodaj odrobinę wody i rozgnieć", "Dodaj whisky i lód", "Zamieszaj"]
+            : ["Place sugar cube in glass", "Add splash of water and muddle", "Add whiskey and ice", "Stir"],
+          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "duża kostka" : "large cube",
+          garnish: requestLanguage === 'pl' ? "Skórka pomarańczy" : "Orange peel",
+          history: ""
+        });
+      }
+      
+      // Check for Manhattan (without bitters)
+      if (hasWhisky && hasVermouth) {
+        fallbackCocktails.push({
+          name: "Manhattan",
+          nameEn: "Manhattan",
+          available: true,
+          description: requestLanguage === 'pl' ? "Elegancki koktajl" : "Elegant cocktail",
+          category: "classic",
+          ingredients: [
+            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Słodki wermut" : "Sweet vermouth", amount: "25", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Wstrząśnij składniki z lodem", "Przecedź do schłodzonego kieliszka"]
+            : ["Stir ingredients with ice", "Strain into chilled glass"],
+          glassType: requestLanguage === 'pl' ? "kieliszek martini" : "martini glass",
+          method: "stirred",
+          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
+          garnish: requestLanguage === 'pl' ? "Wisienka koktajlowa" : "Cocktail cherry",
+          history: ""
+        });
+      });
       }
       
       // Check for Rum & Coke (easier than Cuba Libre - no lime needed)
