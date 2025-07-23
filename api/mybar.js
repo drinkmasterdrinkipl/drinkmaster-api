@@ -4,7 +4,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails and their authentic recipes.
+const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails, their authentic recipes, AND brand names.
 
 CRITICAL RULES:
 1. Use ONLY authentic classic recipes with correct proportions
@@ -22,6 +22,36 @@ CRITICAL RULES:
 8. Maximum 4 cocktails that can be made with given ingredients
 9. Include COMPLETE recipe details
 10. Minor ingredients (egg white, bitters, salt rim) are OPTIONAL - don't block cocktail if missing
+
+BRAND RECOGNITION - BE SMART:
+Common brands and what they are:
+- Jack Daniels / Jack Daniel's = whiskey (bourbon)
+- Jim Beam = whiskey (bourbon)  
+- Johnnie Walker = whisky (scotch)
+- Bombay / Bombay Sapphire = gin
+- Tanqueray = gin
+- Absolut = vodka
+- Smirnoff = vodka
+- Bacardi = rum
+- Captain Morgan = rum
+- Jose Cuervo = tequila
+- Patron = tequila
+- Schweppes = can be tonic water OR ginger ale OR soda water (ask context)
+- Kinley = tonic water (Indian Ocean brand)
+- Coca-Cola / Coke = cola
+- Pepsi = cola
+- Sprite / 7UP = lemon-lime soda (NOT soda water)
+- Canada Dry = ginger ale
+- Jack Daniel's Honey = honey whiskey liqueur
+- Jack Daniel's Fire = cinnamon whiskey liqueur
+
+SMART INTERPRETATION:
+- "Jack Daniels" = user has whiskey
+- "Jack Daniels miodowy" = user has honey whiskey liqueur
+- "Kinley" = user has TONIC WATER (not soda water!)
+- "Schweppes" alone = assume tonic water
+- "Schweppes tonic" = tonic water
+- "Schweppes soda" = soda water
 
 CRITICAL FILTERING RULES:
 1. IGNORE ALL non-cocktail items:
@@ -68,9 +98,17 @@ WHEN CHECKING IF USER CAN MAKE A COCKTAIL:
 - Cuba Libre needs: rum + cola + lime/limonka
 - Margarita needs: tequila + triple sec + lime/limonka (salt rim is OPTIONAL)
 - Tom Collins needs: gin + lemon/cytryna + sugar/cukier + soda water/woda gazowana
-- Gin & Tonic needs: gin + tonic water
+- Gin & Tonic needs: gin + tonic water (Kinley IS tonic water!)
 - Mojito needs: rum + lime/limonka + sugar/cukier + MINT/mięta + soda water/woda gazowana (ALL are required!)
 - Gin Basil Smash needs: gin + lemon/cytryna + sugar/cukier + basil/bazylia
+- Lynchburg Lemonade needs: Jack Daniels + triple sec + lemon + sugar + lemon-lime soda
+
+SHOPPING SUGGESTIONS - BE SMART:
+- Check what cocktails user is CLOSE to making
+- Don't suggest ingredients for cocktails where user is missing multiple key ingredients
+- Example: If user has only "mięta" (mint), DON'T suggest rum for Mojito (they also need lime, sugar, soda)
+- Example: If user has "gin, cytryna, cukier", suggest "woda gazowana" for Tom Collins
+- Be realistic - one purchase should unlock at least one cocktail
 
 CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Whiskey Sour: whiskey 60ml, lemon juice 30ml, simple syrup 20ml, (egg white optional)
@@ -84,10 +122,11 @@ CLASSIC COCKTAIL RECIPES (USE EXACT PROPORTIONS):
 - Old Fashioned: whiskey 60ml, sugar cube 1, bitters 2 dash
 - Moscow Mule: vodka 50ml, lime juice 15ml, ginger beer 120ml
 - Gin Basil Smash: gin 60ml, lemon juice 30ml, simple syrup 20ml, basil 8-10 leaves
+- Lynchburg Lemonade: Jack Daniels 45ml, triple sec 20ml, lemon juice 30ml, simple syrup 15ml, lemon-lime soda top
 
 GLASSWARE RULES:
 - Rocks/Old Fashioned glass: Whiskey Sour, Old Fashioned, Negroni
-- Highball glass: Tom Collins, Mojito, Cuba Libre, Long Island
+- Highball glass: Tom Collins, Mojito, Cuba Libre, Lynchburg Lemonade
 - Coupe glass: Margarita, Daiquiri, Clover Club
 - Martini glass: Martini, Manhattan, Espresso Martini
 - Wine glass: Aperol Spritz, Hugo
@@ -145,8 +184,15 @@ OUTPUT FORMAT:
 
 IMPORTANT EXAMPLES:
 - If user has "whisky, cytryna, cukier" they CAN make Whiskey Sour (show in cocktails section)
+- If user has "gin, cytryna, cukier" they CAN make Gin Sour (show in cocktails section)
 - If user has "rum, cola" but NO lime, Cuba Libre goes to almostPossible
 - If user has "gin, cytryna, cukier" but NO soda water, Tom Collins goes to almostPossible
+- If user has "Bombay, Kinley" they CAN make Gin & Tonic (Bombay=gin, Kinley=tonic)
+- If user has "Jack Daniels, Bombay, cytryna, cukier, Kinley" they CAN make:
+  - Whiskey Sour (Jack Daniels + cytryna + cukier)
+  - Gin Sour (Bombay + cytryna + cukier) 
+  - Gin & Tonic (Bombay + Kinley)
+  And shopping suggestion: bazylia for Gin Basil Smash
 - Only suggest shopping items that make sense with user's current ingredients`;
 
 module.exports = async (req, res) => {
@@ -157,9 +203,45 @@ module.exports = async (req, res) => {
     console.log(`🍹 MyBar request - Ingredients: ${ingredients}`);
     console.log(`🌍 Language: ${requestLanguage}`);
     
-    // Pre-process ingredients to normalize common typos
+    // Pre-process ingredients to normalize common typos AND brands
     const normalizedIngredients = ingredients.map(ing => {
       const lower = ing.toLowerCase().trim();
+      
+      // Brand mapping
+      const brandMap = {
+        'jack daniels': 'whisky',
+        'jack daniel\'s': 'whisky',
+        'jack daniels miodowy': 'honey whiskey liqueur',
+        'jack daniel\'s honey': 'honey whiskey liqueur',
+        'jim beam': 'whisky',
+        'johnnie walker': 'whisky',
+        'bombay': 'gin',
+        'bombay sapphire': 'gin',
+        'tanqueray': 'gin',
+        'absolut': 'vodka',
+        'smirnoff': 'vodka',
+        'bacardi': 'rum',
+        'captain morgan': 'rum',
+        'jose cuervo': 'tequila',
+        'patron': 'tequila',
+        'kinley': 'tonic water',
+        'schweppes': 'tonic water',
+        'coca-cola': 'cola',
+        'coca cola': 'cola',
+        'coke': 'cola',
+        'pepsi': 'cola',
+        'sprite': 'lemon-lime soda',
+        '7up': 'lemon-lime soda',
+        'canada dry': 'ginger ale'
+      };
+      
+      // Check brand mapping first
+      for (const [brand, ingredient] of Object.entries(brandMap)) {
+        if (lower.includes(brand)) {
+          return ing; // Keep original for AI to understand context
+        }
+      }
+      
       // Common typos mapping
       const typoMap = {
         'łiski': 'whisky',
@@ -178,6 +260,7 @@ module.exports = async (req, res) => {
         'kola': 'cola',
         'tonik': 'tonic'
       };
+      
       return typoMap[lower] || ing;
     });
     
@@ -187,6 +270,11 @@ module.exports = async (req, res) => {
 KRYTYCZNE ZASADY INTERPRETACJI:
 - IGNORUJ wszystkie przedmioty niezwiązane z koktajlami (meble, jedzenie, ubrania, przedmioty)
 - Akceptuj TYLKO składniki koktajlowe: alkohole, miksery, soki, zioła (mięta, bazylia, ogórek)
+- ROZPOZNAWAJ MARKI: 
+  - "Jack Daniels" = whisky
+  - "Bombay" = gin
+  - "Kinley" = tonic water (NIE woda gazowana!)
+  - itp. (patrz lista marek)
 - "cytryna" = MAM sok z cytryny (lemon juice)
 - "limonka" = MAM sok z limonki (lime juice)
 - "cukier" = MAM syrop cukrowy (simple syrup)
@@ -194,31 +282,37 @@ KRYTYCZNE ZASADY INTERPRETACJI:
 
 WAŻNE - DOKŁADNIE SPRAWDŹ:
 - Jeśli użytkownik ma "whisky, cukier, cytryna" = MOŻE zrobić Whiskey Sour (pokaz w sekcji cocktails)
+- Jeśli użytkownik ma "gin, cukier, cytryna" = MOŻE zrobić Gin Sour (pokaz w sekcji cocktails)
+- Jeśli użytkownik ma "Bombay, Kinley" = MOŻE zrobić Gin & Tonic (Bombay to gin, Kinley to tonic!)
 - Jeśli użytkownik ma "rum, cola" ale NIE MA limonki = Cuba Libre idzie do almostPossible
 - Jeśli użytkownik ma "gin, cytryna, cukier" ale NIE MA wody gazowanej = Tom Collins idzie do almostPossible
 - NIE WYMAGAJ białka jajka, bitterów, soli - to opcjonalne
 
 PRZYKŁADY:
-- "whisky, gin, cola, cukier, cytryna, rum" = użytkownik może zrobić Whiskey Sour (ma whisky + cytryna + cukier) ORAZ Gin Sour (ma gin + cytryna + cukier)
-- Jeśli użytkownik ma bazylię i gin, cytrynę, cukier = sugeruj Gin Basil Smash jako opcję
+- "Jack Daniels, Bombay, cola, cukier, cytryna" = użytkownik może zrobić:
+  - Whiskey Sour (Jack Daniels + cytryna + cukier)
+  - Gin Sour (Bombay + cytryna + cukier)
+- "Jack Daniels, Bombay, cytryna, cukier, Kinley" = użytkownik może zrobić:
+  - Whiskey Sour (Jack Daniels + cytryna + cukier)
+  - Gin Sour (Bombay + cytryna + cukier)
+  - Gin & Tonic (Bombay + Kinley)
+  I sugestia zakupu: bazylia do Gin Basil Smash (ma już gin + cytryna + cukier)
+- "gin, Kinley" = użytkownik może zrobić Gin & Tonic (Kinley to tonic water!)
 - Sugeruj tylko sensowne zakupy które pasują do obecnych składników użytkownika
-- NIE sugeruj że limonka "odblokuje Mojito" jeśli użytkownik nie ma mięty i wody gazowanej!
+- NIE sugeruj że mięta "odblokuje Mojito" jeśli użytkownik nie ma rumu, limonki, cukru i wody gazowanej!
 - NIE sugeruj że triple sec "odblokuje Margaritę" jeśli użytkownik nie ma tequili!
 - Sugestie zakupów muszą być realistyczne - jeden składnik odblokuje drink TYLKO jeśli użytkownik ma WSZYSTKIE pozostałe składniki
-- "woda gazowana" to to samo co "soda water" - nie rozróżniaj tych nazw
 
 WAŻNE DLA SUGESTII ZAKUPÓW:
 - Sprawdź WSZYSTKIE wymagane składniki przed sugerowaniem zakupu
-- Margarita = tequila + triple sec + limonka (jeśli brakuje tequili, NIE sugeruj triple sec)
-- Cuba Libre = rum + cola + limonka (jeśli brakuje rumu lub coli, NIE sugeruj limonki)
-- Tom Collins = gin + cytryna + cukier + woda gazowana (sprawdź wszystkie)
-- Mojito = rum + limonka + cukier + mięta + woda gazowana (sprawdź wszystkie)
+- Jeśli użytkownik ma TYLKO miętę, NIE sugeruj rumu dla Mojito (brakuje też limonki, cukru, wody)
+- Jeśli użytkownik ma gin + Kinley, może sugerować cytrynę i cukier dla Tom Collins (potrzebuje tylko wody gazowanej)
 
 Podaj koktajle które NAPRAWDĘ można zrobić ze składników.
 Maksymalnie 4 koktajle w sekcji cocktails.
 W shoppingList maksymalnie 3 najlepsze propozycje.
 Wszystkie teksty po polsku.
-Używaj "woda gazowana" zamiast "soda water" w polskich tekstach.
+Kinley to TONIC WATER, nie woda gazowana!
 
 RETURN ONLY VALID JSON!`
       : `I have these ingredients: ${normalizedIngredients.join(', ')}
@@ -226,6 +320,11 @@ RETURN ONLY VALID JSON!`
 CRITICAL INTERPRETATION RULES:
 - IGNORE all non-cocktail items (furniture, food, clothes, objects)
 - Accept ONLY cocktail ingredients: spirits, mixers, juices, herbs (mint, basil, cucumber)
+- RECOGNIZE BRANDS:
+  - "Jack Daniels" = whiskey
+  - "Bombay" = gin
+  - "Kinley" = tonic water (NOT soda water!)
+  - etc. (see brand list)
 - "lemon" = I HAVE lemon juice
 - "lime" = I HAVE lime juice
 - "sugar" = I HAVE simple syrup
@@ -233,30 +332,29 @@ CRITICAL INTERPRETATION RULES:
 
 IMPORTANT - CHECK CAREFULLY:
 - If user has "whisky, sugar, lemon" = CAN make Whiskey Sour (show in cocktails section)
+- If user has "Bombay, Kinley" = CAN make Gin & Tonic (Bombay is gin, Kinley is tonic!)
 - If user has "rum, cola" but NO lime = Cuba Libre goes to almostPossible
 - If user has "gin, lemon, sugar" but NO soda water = Tom Collins goes to almostPossible
 - DO NOT REQUIRE egg white, bitters, salt rim - these are optional
 
 EXAMPLES:
-- "whisky, gin, cola, sugar, lemon, rum" = user can make Whiskey Sour (has whisky + lemon + sugar) AND Gin Sour (has gin + lemon + sugar)
-- If user has basil and gin, lemon, sugar = suggest Gin Basil Smash as option
+- "Jack Daniels, Bombay, cola, sugar, lemon" = user can make Whiskey Sour (Jack Daniels is whiskey)
+- "gin, Kinley" = user can make Gin & Tonic (Kinley is tonic water!)
 - Only suggest shopping items that make sense with user's current ingredients
-- DON'T suggest that lime "unlocks Mojito" if user doesn't have mint and soda water!
+- DON'T suggest that mint "unlocks Mojito" if user doesn't have rum, lime, sugar and soda water!
 - DON'T suggest that triple sec "unlocks Margarita" if user doesn't have tequila!
 - Shopping suggestions must be realistic - one ingredient unlocks a drink ONLY if user has ALL other required ingredients
-- "soda water" is the same as "sparkling water" - treat them as equivalent
 
 IMPORTANT FOR SHOPPING SUGGESTIONS:
 - Check ALL required ingredients before suggesting a purchase
-- Margarita = tequila + triple sec + lime (if missing tequila, DON'T suggest triple sec)
-- Cuba Libre = rum + cola + lime (if missing rum or cola, DON'T suggest lime)
-- Tom Collins = gin + lemon + sugar + soda water (check all)
-- Mojito = rum + lime + sugar + mint + soda water (check all)
+- If user has ONLY mint, DON'T suggest rum for Mojito (also missing lime, sugar, soda)
+- If user has gin + Kinley, can suggest lemon and sugar for Tom Collins (would only need soda water)
 
 List cocktails I can ACTUALLY make with ingredients.
 Maximum 4 cocktails in cocktails section.
 Maximum 3 items in shoppingList.
 All text in English.
+Kinley is TONIC WATER, not soda water!
 
 RETURN ONLY VALID JSON!`;
 
@@ -342,24 +440,66 @@ RETURN ONLY VALID JSON!`;
     } catch (e) {
       console.error('MyBar parse error:', e);
       
-      // Safe fallback with basic logic
-      const hasWhisky = normalizedIngredients.some(i => i.toLowerCase().includes('whisk'));
-      const hasSugar = normalizedIngredients.some(i => i.toLowerCase().includes('cukier') || i.toLowerCase().includes('sugar'));
-      const hasLemon = normalizedIngredients.some(i => i.toLowerCase().includes('cytryn') || i.toLowerCase().includes('lemon'));
-      const hasRum = normalizedIngredients.some(i => i.toLowerCase().includes('rum'));
-      const hasCola = normalizedIngredients.some(i => i.toLowerCase().includes('cola'));
-      const hasGin = normalizedIngredients.some(i => i.toLowerCase().includes('gin'));
-      const hasLime = normalizedIngredients.some(i => i.toLowerCase().includes('limonk') || i.toLowerCase().includes('lime'));
-      const hasSoda = normalizedIngredients.some(i => 
-        i.toLowerCase().includes('woda gazowana') || 
-        i.toLowerCase().includes('soda') || 
-        i.toLowerCase().includes('sparkling')
+      // Enhanced fallback with brand recognition
+      const ingredientsList = normalizedIngredients.map(i => i.toLowerCase());
+      
+      // Brand recognition in fallback
+      const hasWhisky = ingredientsList.some(i => 
+        i.includes('whisk') || i.includes('jack daniel') || i.includes('jim beam') || i.includes('johnnie walker')
+      );
+      const hasGin = ingredientsList.some(i => 
+        i.includes('gin') || i.includes('bombay') || i.includes('tanqueray')
+      );
+      const hasTonic = ingredientsList.some(i => 
+        i.includes('tonic') || i.includes('kinley') || (i.includes('schweppes') && !i.includes('soda'))
+      );
+      const hasVodka = ingredientsList.some(i => 
+        i.includes('vodka') || i.includes('absolut') || i.includes('smirnoff')
+      );
+      const hasRum = ingredientsList.some(i => 
+        i.includes('rum') || i.includes('bacardi') || i.includes('captain morgan')
+      );
+      const hasCola = ingredientsList.some(i => 
+        i.includes('cola') || i.includes('coke') || i.includes('pepsi') || i.includes('coca')
+      );
+      const hasSugar = ingredientsList.some(i => i.includes('cukier') || i.includes('sugar'));
+      const hasLemon = ingredientsList.some(i => i.includes('cytryn') || i.includes('lemon'));
+      const hasLime = ingredientsList.some(i => i.includes('limonk') || i.includes('lime'));
+      const hasSoda = ingredientsList.some(i => 
+        i.includes('woda gazowana') || 
+        i.includes('soda water') || 
+        i.includes('sparkling water') ||
+        (i.includes('schweppes') && i.includes('soda'))
       );
       
       const fallbackCocktails = [];
       const fallbackAlmostPossible = [];
+      const shoppingList = [];
       
-      // Check for Whiskey Sour
+      // Check for Gin & Tonic (including Kinley!)
+      if (hasGin && hasTonic) {
+        fallbackCocktails.push({
+          name: "Gin & Tonic",
+          nameEn: "Gin & Tonic",
+          available: true,
+          description: requestLanguage === 'pl' ? "Klasyczny orzeźwiający drink" : "Classic refreshing drink",
+          category: "highball",
+          ingredients: [
+            {name: "Gin", amount: "50", unit: "ml"},
+            {name: requestLanguage === 'pl' ? "Tonik" : "Tonic water", amount: "150", unit: "ml"}
+          ],
+          instructions: requestLanguage === 'pl' 
+            ? ["Napełnij szklankę lodem", "Dodaj gin", "Dopełnij tonikiem", "Delikatnie zamieszaj"]
+            : ["Fill glass with ice", "Add gin", "Top with tonic", "Stir gently"],
+          glassType: "highball",
+          method: requestLanguage === 'pl' ? "budowany" : "built",
+          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
+          garnish: requestLanguage === 'pl' ? "Plasterek limonki lub cytryny" : "Lime or lemon slice",
+          history: ""
+        });
+      }
+      
+      // Check for Whiskey Sour (including Jack Daniels!)
       if (hasWhisky && hasSugar && hasLemon) {
         fallbackCocktails.push({
           name: "Whiskey Sour",
@@ -383,142 +523,16 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
-      // Check for Gin Sour
-      if (hasGin && hasSugar && hasLemon) {
-        fallbackCocktails.push({
-          name: "Gin Sour",
-          nameEn: "Gin Sour",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający kwaśny koktajl" : "Refreshing sour cocktail",
-          category: "sour",
-          ingredients: [
-            {name: "Gin", amount: "60", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "30", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "20", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki coupe", "Udekoruj cytryną"]
-            : ["Shake all ingredients with ice", "Strain into coupe glass", "Garnish with lemon"],
-          glassType: requestLanguage === 'pl' ? "kieliszek coupe" : "coupe glass",
-          method: "shaken",
-          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
-          garnish: requestLanguage === 'pl' ? "Skórka cytryny" : "Lemon peel",
-          history: ""
-        });
-      }
-      
-      // Check for Cuba Libre
-      if (hasRum && hasCola && hasLime) {
-        fallbackCocktails.push({
-          name: "Cuba Libre",
-          nameEn: "Cuba Libre",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny drink z rumem i colą" : "Classic rum and cola cocktail",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "120", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj rum i sok z limonki", "Dopełnij colą i delikatnie zamieszaj"]
-            : ["Fill glass with ice", "Add rum and lime juice", "Top with cola and stir gently"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Ćwiartka limonki" : "Lime wedge",
-          history: ""
-        });
-      } else if (hasRum && hasCola && !hasLime) {
-        fallbackAlmostPossible.push({
-          name: "Cuba Libre",
-          nameEn: "Cuba Libre",
-          missingIngredient: requestLanguage === 'pl' ? "limonka" : "lime",
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl z rumem, colą i limonką" : "Refreshing cocktail with rum, cola and lime",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "120", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "10", unit: "ml"}
-          ],
-          instructions: [],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: ""
-        });
-      }
-      
-      // Check for Tom Collins
-      if (hasGin && hasLemon && hasSugar && hasSoda) {
-        fallbackCocktails.push({
-          name: "Tom Collins",
-          nameEn: "Tom Collins",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
-          category: "collins",
-          ingredients: [
-            {name: "Gin", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Dodaj gin, sok z cytryny i syrop do szklanki z lodem", "Dopełnij wodą gazowaną", "Delikatnie zamieszaj"]
-            : ["Add gin, lemon juice and syrup to glass with ice", "Top with soda water", "Stir gently"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Plasterek cytryny i wisienka" : "Lemon slice and cherry",
-          history: ""
-        });
-      } else if (hasGin && hasLemon && hasSugar && !hasSoda) {
-        fallbackAlmostPossible.push({
-          name: "Tom Collins",
-          nameEn: "Tom Collins",
-          missingIngredient: requestLanguage === 'pl' ? "woda gazowana" : "soda water",
-          description: requestLanguage === 'pl' ? "Orzeźwiający koktajl ginowy z cytryną" : "Refreshing gin cocktail with lemon",
-          category: "collins",
-          ingredients: [
-            {name: "Gin", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z cytryny" : "Lemon juice", amount: "25", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Syrop cukrowy" : "Simple syrup", amount: "15", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water", amount: "100", unit: "ml"}
-          ],
-          instructions: [],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: ""
-        });
-      }
-      
-      // Smart shopping suggestions
-      const shoppingList = [];
-      
-      // If has rum and cola but no lime, suggest lime
-      if (hasRum && hasCola && !hasLime) {
+      // Smart shopping suggestions based on what user has
+      if (hasGin && hasTonic && !hasLime) {
         shoppingList.push({
           ingredient: requestLanguage === 'pl' ? "Limonka" : "Lime",
-          unlocksCount: 1,
-          priority: "high",
+          unlocksCount: 0,
+          priority: "low",
           reason: requestLanguage === 'pl' 
-            ? "Masz rum i colę - brakuje tylko limonki do Cuba Libre!"
-            : "You have rum and cola - just need lime for Cuba Libre!",
-          newCocktails: ["Cuba Libre"]
-        });
-      }
-      
-      // If has gin, lemon, sugar but no soda, suggest soda water
-      if (hasGin && hasLemon && hasSugar && !hasSoda) {
-        shoppingList.push({
-          ingredient: requestLanguage === 'pl' ? "Woda gazowana" : "Soda water",
-          unlocksCount: 1,
-          priority: "high",
-          reason: requestLanguage === 'pl' 
-            ? "Masz gin, cytrynę i cukier - brakuje tylko wody gazowanej do Tom Collins!"
-            : "You have gin, lemon and sugar - just need soda water for Tom Collins!",
-          newCocktails: ["Tom Collins"]
+            ? "Idealny dodatek do Gin & Tonic"
+            : "Perfect garnish for Gin & Tonic",
+          newCocktails: []
         });
       }
       
