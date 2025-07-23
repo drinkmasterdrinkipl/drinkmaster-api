@@ -888,6 +888,9 @@ RETURN ONLY VALID JSON!`;
       const fallbackAlmostPossible = [];
       const fallbackShoppingList = [];
       
+      // CRITICAL: Check if it's an optional ingredient we should NEVER suggest
+      const neverSuggest = ['bitters', 'angostura', 'egg white', 'salt', 'cherry', 'olive', 'orange peel'];
+      
       // Build cocktails from our logic
       for (const cocktailName of canMake) {
         const recipe = COCKTAIL_RECIPES[cocktailName];
@@ -933,6 +936,26 @@ RETURN ONLY VALID JSON!`;
       
       // Build shopping list
       for (const suggestion of shoppingSuggestions) {
+        // CRITICAL: Skip bitters and other optional ingredients
+        const neverSuggestPL = {
+          'bitters': 'bitters',
+          'angostura': 'angostura',
+          'egg white': 'białko jajka',
+          'salt': 'sól'
+        };
+        
+        // Check if this is something we should never suggest
+        let shouldSkip = false;
+        for (const [eng, pl] of Object.entries(neverSuggestPL)) {
+          if (suggestion.ingredient.toLowerCase().includes(eng) || 
+              suggestion.ingredient.toLowerCase().includes(pl)) {
+            shouldSkip = true;
+            break;
+          }
+        }
+        
+        if (shouldSkip) continue;
+        
         fallbackShoppingList.push({
           ingredient: requestLanguage === 'pl' 
             ? translateIngredient(suggestion.ingredient, 'pl')
