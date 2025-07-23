@@ -19,7 +19,7 @@ CRITICAL RULES:
    - Ignore garnish/minor ingredients like egg white, bitters, salt for availability
 6. ONLY suggest cocktails where user has ALL MAIN ingredients
 7. For shopping suggestions, prioritize ingredients that unlock the most classic cocktails
-8. Maximum 4 cocktails that can be made with given ingredients
+8. Show ALL cocktails that can be made with given ingredients (no limit)
 9. Include COMPLETE recipe details
 10. Minor ingredients (egg white, bitters, salt rim) are OPTIONAL - don't block cocktail if missing
 
@@ -327,9 +327,9 @@ SUGESTIE ZAKUPÓW - MYŚL LOGICZNIE:
 - Przykład: jeśli ma gin + cytryna + cukier → sugeruj bazylię (odblokuje Gin Basil Smash)
 - Przykład: jeśli ma gin + campari → sugeruj wermut (odblokuje Negroni)
 
-Podaj koktajle które NAPRAWDĘ można zrobić.
-Maksymalnie 4 koktajle w sekcji cocktails.
-W shoppingList maksymalnie 3 najlepsze propozycje.
+Podaj WSZYSTKIE koktajle które NAPRAWDĘ można zrobić.
+NIE OGRANICZAJ liczby koktajli - pokaż wszystkie możliwe.
+W shoppingList maksymalnie 2 najlepsze propozycje.
 Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
@@ -369,9 +369,9 @@ SHOPPING SUGGESTIONS - THINK LOGICALLY:
 - Example: if has gin + lemon + sugar → suggest basil (unlocks Gin Basil Smash)
 - Example: if has gin + campari → suggest vermouth (unlocks Negroni)
 
-List cocktails I can ACTUALLY make.
-Maximum 4 cocktails in cocktails section.
-Maximum 3 items in shoppingList.
+List ALL cocktails I can ACTUALLY make.
+NO LIMIT on cocktails - show all possible.
+Maximum 2 items in shoppingList.
 All text in English.
 
 RETURN ONLY VALID JSON!`;
@@ -799,11 +799,10 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
-      // Limit to 3 suggestions
-      shoppingList.splice(3);
+      // Limit to 2 suggestions only
+      shoppingList.splice(2);
       
-      // Limit cocktails to 4
-      fallbackCocktails.splice(4);
+      // Don't limit cocktails - show all possible!
       
       suggestions = {
         cocktails: fallbackCocktails,
