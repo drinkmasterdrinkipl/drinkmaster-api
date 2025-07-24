@@ -13,38 +13,51 @@ const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse)
   try {
     if (!firebaseUid) {
       console.log('⚠️ No firebaseUid provided, skipping history save');
-      return;
+      return { success: false, error: 'No firebaseUid' };
     }
+
+    console.log('📝 Saving scan to history for user:', firebaseUid);
+    console.log('📝 Bottle info type:', typeof bottleInfo);
+    console.log('📝 Bottle info:', JSON.stringify(bottleInfo).substring(0, 200) + '...');
 
     const historyEntry = {
       timestamp: new Date(),
-      bottleInfo: {
-        name: bottleInfo.name,
-        brand: bottleInfo.brand,
-        type: bottleInfo.type,
-        country: bottleInfo.country,
-        alcoholContent: bottleInfo.alcoholContent,
-        description: bottleInfo.description,
-        servingSuggestions: bottleInfo.servingSuggestions || [],
-        cocktailSuggestions: bottleInfo.cocktailSuggestions || []
-      },
-      imageData: imageData, // Store base64 image
-      aiResponse: aiResponse,
-      confidence: aiResponse.confidence || 0
+      bottleInfo: bottleInfo, // Zapisujemy cały obiekt
+      imageData: null, // NIE ZAPISUJEMY OBRAZU - za duże!
+      aiResponse: {
+        name: aiResponse.name || bottleInfo.name,
+        type: aiResponse.type || bottleInfo.type,
+        confidence: aiResponse.confidence || bottleInfo.confidence
+      }, // Tylko podstawowe dane
+      confidence: aiResponse.confidence || bottleInfo.confidence || 50
     };
 
-    await User.findOneAndUpdate(
+    console.log('📝 History entry prepared');
+
+    const result = await User.findOneAndUpdate(
       { firebaseUid },
       { 
         $push: { scanHistory: historyEntry },
-        $inc: { 'stats.totalScans': 1 }
+        $inc: { 'stats.totalScans': 1 },
+        lastActive: new Date()
       },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
+    if (!result) {
+      console.log('❌ User update failed');
+      return { success: false, error: 'User update failed' };
+    }
+
     console.log('✅ Scan saved to history for user:', firebaseUid);
+    console.log('📊 User now has', result.scanHistory.length, 'scans in history');
+    console.log('📊 User stats:', result.stats);
+    
+    return { success: true, scanCount: result.scanHistory.length };
   } catch (error) {
     console.error('❌ Error saving scan to history:', error);
+    console.error('❌ Error details:', error.message);
+    return { success: false, error: error.message };
   }
 };
 
@@ -279,7 +292,8 @@ router.post('/', async (req, res) => {
     };
 
     // 🆕 Save scan to history automatically
-    await saveScanToHistory(firebaseUid, bottleData, image, bottleData);
+    const saveResult = await saveScanToHistory(firebaseUid, bottleData, image, bottleData);
+    console.log('📤 Save result:', saveResult);
 
     console.log('📤 Sending response to client');
 
