@@ -1,27 +1,79 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const connectDB = require('./config/database');
+const config = require('./config/config');
 
 const app = express();
-app.use(cors());
+
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Connect to MongoDB
+connectDB();
+
+// Middleware
+app.use(cors(config.cors));
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Import route handlers
-const scanner = require('./api/scanner');
-const recipeGenerator = require('./api/recipe-generator');
-const mybar = require('./api/mybar');
-
-// Routes
-app.post('/api/scanner', scanner);
-app.post('/api/recipe-generator', recipeGenerator);
-app.post('/api/mybar', mybar);
+// Request logging in development
+if (config.server.env === 'development') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // Health check
-app.get('/', (req, res) => {
-  res.json({ status: 'DrinkMaster API is running!' });
+app.get('/health', async (req, res) => {
+  const dbState = require('mongoose').connection.readyState;
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  
+  res.json({ 
+    status: 'OK',
+    database: states[dbState],
+    environment: config.server.env,
+    timestamp: new Date().toISOString()
+  });
 });
 
-const PORT = process.env.PORT || 3000;
+// API Routes
+app.use('/api/scanner', require('./api/scanner'));
+app.use('/api/recipe-generator', require('./api/recipe-generator'));
+app.use('/api/mybar', require('./api/mybar'));
+app.use('/api/user', require('./api/user'));
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  const status = err.status || 500;
+  res.status(status).json({ 
+    error: config.server.env === 'production' 
+      ? 'Something went wrong!' 
+      : err.message 
+  });
+});
+
+const PORT = config.server.port;
 app.listen(PORT, () => {
-  console.log(`🍹 API running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🔧 Environment: ${config.server.env}`);
+  if (config.server.env === 'development') {
+    console.log(`🔗 http://localhost:${PORT}`);
+  }
 });

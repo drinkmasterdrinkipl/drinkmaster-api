@@ -1,4 +1,8 @@
+const express = require('express');
+const router = express.Router();
 const OpenAI = require('openai');
+const User = require('../models/User');
+const Scan = require('../models/Scan');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -55,7 +59,8 @@ OUTPUT FORMAT:
   "funFact": "[One interesting fact in requested language]"
 }`;
 
-module.exports = async (req, res) => {
+// Main scanner endpoint
+router.post('/', async (req, res) => {
   try {
     const { image, language } = req.body;
     const requestLanguage = language || 'en';
@@ -174,4 +179,119 @@ module.exports = async (req, res) => {
     console.error('Scanner error:', error);
     res.status(500).json({ error: error.message });
   }
-};
+});
+
+// Save scan to database
+router.post('/save', async (req, res) => {
+  try {
+    const { firebaseUid, bottleInfo, imageData, aiResponse } = req.body;
+    
+    // Find user
+    const user = await User.findOne({ firebaseUid });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+    
+    // Create scan
+    const scan = await Scan.create({
+      userId: user._id,
+      firebaseUid,
+      bottleInfo,
+      imageData: imageData ? imageData.substring(0, 100) + '...' : null, // Zapisz tylko część dla testów
+      aiResponse
+    });
+    
+    // Update user stats
+    await User.findByIdAndUpdate(user._id, {
+      $inc: { 'stats.totalScans': 1 },
+      lastActive: new Date()
+    });
+    
+    console.log(`✅ Scan saved for user: ${user.email}`);
+    
+    res.json({ 
+      success: true, 
+      scanId: scan._id 
+    });
+    
+  } catch (error) {
+    console.error('Save scan error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get user's scan history
+router.get('/history/:firebaseUid', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    
+    const user = await User.findOne({ firebaseUid: req.params.firebaseUid });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+    
+    const scans = await Scan.find({ userId: user._id })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .select('-imageData'); // Nie zwracaj obrazów dla wydajności
+    
+    const total = await Scan.countDocuments({ userId: user._id });
+    
+    res.json({ 
+      success: true, 
+      scans,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get history error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get single scan
+router.get('/scan/:scanId', async (req, res) => {
+  try {
+    const scan = await Scan.findById(req.params.scanId)
+      .populate('userId', 'email displayName');
+    
+    if (!scan) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Scan not found' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      scan 
+    });
+    
+  } catch (error) {
+    console.error('Get scan error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+module.exports = router;
