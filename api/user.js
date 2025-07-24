@@ -1,156 +1,112 @@
-const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
+// master-api/models/User.js
+const mongoose = require('mongoose');
 
-// Sync user from Firebase
-router.post('/sync', async (req, res) => {
-  try {
-    const { firebaseUid, email, displayName, photoURL } = req.body;
-    
-    console.log('🔄 Syncing user:', email);
-    
-    if (!firebaseUid || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields' 
-      });
-    }
-    
-    let user = await User.findOne({ firebaseUid });
-    
-    if (!user) {
-      // Create new user with 3-day trial
-      user = await User.create({
-        firebaseUid,
-        email,
-        displayName,
-        photoURL,
-        subscriptionType: 'free', // Start with free, trial is handled separately
-        trialStartDate: new Date(),
-        stats: {
-          totalScans: 0,
-          totalRecipes: 0,
-          totalMyBar: 0
-        },
-        scanHistory: [],
-        recipeHistory: [],
-        myBarHistory: [],
-        favoriteRecipes: []
-      });
-      console.log('✅ New user created:', email);
-    } else {
-      // Update existing user
-      user.lastActive = new Date();
-      if (displayName) user.displayName = displayName;
-      if (photoURL) user.photoURL = photoURL;
-      
-      // Ensure arrays exist for existing users
-      if (!user.scanHistory) user.scanHistory = [];
-      if (!user.recipeHistory) user.recipeHistory = [];
-      if (!user.myBarHistory) user.myBarHistory = [];
-      if (!user.favoriteRecipes) user.favoriteRecipes = [];
-      
-      await user.save();
-      console.log('✅ User updated:', email);
-    }
-    
-    res.json({ 
-      success: true, 
-      user: {
-        id: user._id,
-        firebaseUid: user.firebaseUid,
-        email: user.email,
-        displayName: user.displayName,
-        subscriptionType: user.subscriptionType,
-        trialStartDate: user.trialStartDate,
-        stats: user.stats,
-        hasHistory: {
-          scans: user.scanHistory.length > 0,
-          recipes: user.recipeHistory.length > 0,
-          myBar: user.myBarHistory.length > 0
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ User sync error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
+const userSchema = new mongoose.Schema({
+  firebaseUid: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  displayName: String,
+  photoURL: String,
+  
+  // Subscription data
+  subscriptionType: {
+    type: String,
+    enum: ['free', 'monthly', 'annual'],
+    default: 'free'
+  },
+  trialStartDate: Date,
+  subscriptionStartDate: Date,
+  subscriptionEndDate: Date,
+  
+  // Usage stats
+  stats: {
+    totalScans: { type: Number, default: 0 },
+    totalRecipes: { type: Number, default: 0 },
+    totalMyBar: { type: Number, default: 0 }
+  },
+  
+  // History arrays
+  scanHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    bottleInfo: mongoose.Schema.Types.Mixed, // Bez dodatkowego obiektu type
+    imageData: String,
+    aiResponse: mongoose.Schema.Types.Mixed,
+    confidence: Number
+  }],
+  
+  recipeHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    name: String,
+    nameEn: String,
+    category: String,
+    ingredients: [{
+      name: String,
+      amount: String,
+      unit: String,
+      optional: Boolean
+    }],
+    instructions: [String],
+    difficulty: String,
+    prepTime: Number,
+    glassType: String,
+    ice: String,
+    garnish: String,
+    alcoholContent: String,
+    servingTemp: String,
+    method: String,
+    history: String,
+    funFact: String,
+    abv: Number,
+    flavor: String,
+    occasion: String,
+    tags: [String],
+    tips: [String],
+    proTip: String
+  }],
+  
+  myBarHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    ingredients: [{
+      name: String,
+      category: String,
+      inStock: Boolean
+    }],
+    ingredientsCount: Number,
+    analysis: mongoose.Schema.Types.Mixed
+  }],
+  
+  // Favorites
+  favoriteRecipes: [{
+    recipeId: String,
+    name: String,
+    nameEn: String,
+    category: String,
+    addedAt: { type: Date, default: Date.now }
+  }],
+  
+  // Other
+  lastActive: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, {
+  timestamps: true
 });
 
-// Get user profile
-router.get('/profile/:firebaseUid', async (req, res) => {
-  try {
-    const user = await User.findOne({ firebaseUid: req.params.firebaseUid });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      user: {
-        id: user._id,
-        firebaseUid: user.firebaseUid,
-        email: user.email,
-        displayName: user.displayName,
-        subscriptionType: user.subscriptionType,
-        trialStartDate: user.trialStartDate,
-        stats: user.stats,
-        createdAt: user.createdAt,
-        historyCount: {
-          scans: user.scanHistory?.length || 0,
-          recipes: user.recipeHistory?.length || 0,
-          myBar: user.myBarHistory?.length || 0,
-          favorites: user.favoriteRecipes?.length || 0
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ Get profile error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
+// Indexes for performance
+userSchema.index({ firebaseUid: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ 'scanHistory.timestamp': -1 });
+userSchema.index({ 'recipeHistory.timestamp': -1 });
+userSchema.index({ 'myBarHistory.timestamp': -1 });
 
-// Get user stats
-router.get('/stats/:firebaseUid', async (req, res) => {
-  try {
-    const user = await User.findOne({ firebaseUid: req.params.firebaseUid });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      stats: {
-        ...user.stats,
-        historyCount: {
-          scans: user.scanHistory?.length || 0,
-          recipes: user.recipeHistory?.length || 0,
-          myBar: user.myBarHistory?.length || 0,
-          favorites: user.favoriteRecipes?.length || 0
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ Get stats error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
+const User = mongoose.model('User', userSchema);
 
-module.exports = router;
+module.exports = User;
