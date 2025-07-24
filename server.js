@@ -50,10 +50,27 @@ app.get('/health', async (req, res) => {
   });
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'DrinkMaster API', 
+    version: '1.0.0',
+    endpoints: [
+      '/api/scanner',
+      '/api/recipe-generator', 
+      '/api/mybar',
+      '/api/history',
+      '/api/user',
+      '/health'
+    ]
+  });
+});
+
 // API Routes
 app.use('/api/scanner', require('./api/scanner'));
 app.use('/api/recipe-generator', require('./api/recipe-generator'));
 app.use('/api/mybar', require('./api/mybar'));
+app.use('/api/history', require('./api/history')); // 🆕 DODANE!
 app.use('/api/user', require('./api/user'));
 
 // 404 handler
@@ -76,6 +93,13 @@ const PORT = config.server.port;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔧 Environment: ${config.server.env}`);
+  console.log('📋 Available endpoints:');
+  console.log('   - /api/scanner');
+  console.log('   - /api/recipe-generator');
+  console.log('   - /api/mybar');
+  console.log('   - /api/history');
+  console.log('   - /api/user');
+  console.log('   - /health');
   if (config.server.env === 'development') {
     console.log(`🔗 http://localhost:${PORT}`);
   }
