@@ -744,9 +744,16 @@ function translateIngredient(ingredient, language) {
 // Helper function to check daily limits
 const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   try {
+    // If no firebaseUid provided, allow with generic limits
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, using default limits');
+      return { allowed: true, remaining: 3 };
+    }
+
     const user = await User.findOne({ firebaseUid });
     if (!user) {
-      return { allowed: false, error: 'User not found' };
+      console.log('⚠️ User not found, using default limits');
+      return { allowed: true, remaining: 3 };
     }
 
     // For now, always allow (implement limit logic later)
@@ -760,6 +767,11 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
 // Helper function to update user stats
 const updateUserStats = async (firebaseUid) => {
   try {
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, skipping stats update');
+      return;
+    }
+
     await User.findOneAndUpdate(
       { firebaseUid },
       { 
@@ -780,8 +792,9 @@ router.post('/', async (req, res) => {
     
     console.log(`🍹 MyBar request - Ingredients: ${ingredients}`);
     console.log(`🌍 Language: ${requestLanguage}`);
+    console.log(`👤 FirebaseUid: ${firebaseUid || 'not provided'}`);
     
-    // Check rate limit
+    // Check rate limit (now optional firebaseUid)
     const limitCheck = await checkDailyLimit(firebaseUid, 'mybar');
     if (!limitCheck.allowed) {
       return res.status(429).json({
@@ -927,280 +940,24 @@ RETURN ONLY VALID JSON!`;
     } catch (e) {
       console.error('MyBar parse error, using fallback:', e);
       
-      // Complete fallback logic
+      // Build fallback cocktails from our logic
       const fallbackCocktails = [];
-      const fallbackAlmostPossible = [];
-      const fallbackShoppingList = [];
       
-      // Check what user has
-      const normalizedIngredients = ingredients.map(ing => normalizeIngredient(ing));
-      const hasVodka = hasIngredient(ingredients, 'vodka');
-      const hasWhisky = hasIngredient(ingredients, 'whisky');
-      const hasGin = hasIngredient(ingredients, 'gin');
-      const hasRum = hasIngredient(ingredients, 'rum');
-      const hasTequila = hasIngredient(ingredients, 'tequila');
-      const hasLemon = hasIngredient(ingredients, 'lemon');
-      const hasLime = hasIngredient(ingredients, 'lime');
-      const hasSugar = hasIngredient(ingredients, 'sugar');
-      const hasCola = hasIngredient(ingredients, 'cola');
-      const hasEnergyDrink = hasIngredient(ingredients, 'energy drink');
-      const hasOrange = hasIngredient(ingredients, 'orange');
-      const hasCranberry = hasIngredient(ingredients, 'cranberry');
-      const hasGingerBeer = hasIngredient(ingredients, 'ginger beer');
-      const hasKahlua = hasIngredient(ingredients, 'kahlua');
-      const hasBaileys = hasIngredient(ingredients, 'baileys') || hasIngredient(ingredients, 'cream');
-      const hasVermouth = hasIngredient(ingredients, 'vermouth');
-      
-      // Check for simple cocktails
-      if (hasVodka && hasEnergyDrink) {
-        fallbackCocktails.push({
-          name: "Vodka Red Bull",
-          nameEn: "Vodka Red Bull",
-          available: true,
-          description: requestLanguage === 'pl' ? "Energetyzujący drink" : "Energy cocktail",
-          category: "modern",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
-            {name: "Red Bull", amount: "250", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij Red Bullem"]
-            : ["Fill glass with ice", "Add vodka", "Top with Red Bull"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: "",
-          history: ""
-        });
-      }
-      
-      // Check for Mudslide (with Baileys, Kahlua)
-      if (hasVodka && hasKahlua && hasBaileys) {
-        fallbackCocktails.push({
-          name: "Mudslide",
-          nameEn: "Mudslide",
-          available: true,
-          description: requestLanguage === 'pl' ? "Kremowy koktajl czekoladowy" : "Creamy chocolate cocktail",
-          category: "creamy",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "30", unit: "ml"},
-            {name: "Kahlua", amount: "30", unit: "ml"},
-            {name: "Baileys", amount: "30", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wstrząśnij wszystkie składniki z lodem", "Przecedź do szklanki", "Opcjonalnie: posyp czekoladą"]
-            : ["Shake all ingredients with ice", "Strain into glass", "Optional: dust with chocolate"],
-          glassType: requestLanguage === 'pl' ? "szklanka martini" : "martini glass",
-          method: "shaken",
-          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
-          garnish: requestLanguage === 'pl' ? "Wiórki czekolady" : "Chocolate shavings",
-          history: ""
-        });
-      }
-      
-      // Check for B-52 shot
-      if (hasKahlua && hasBaileys) {
-        fallbackCocktails.push({
-          name: "B-52",
-          nameEn: "B-52",
-          available: true,
-          description: requestLanguage === 'pl' ? "Warstwowy shot" : "Layered shot",
-          category: "shot",
-          ingredients: [
-            {name: "Kahlua", amount: "20", unit: "ml"},
-            {name: "Baileys", amount: "20", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Likier pomarańczowy" : "Orange liqueur", amount: "20", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wlej Kahlua do kieliszka", "Delikatnie dodaj Baileys po łyżce", "Dodaj likier pomarańczowy"]
-            : ["Pour Kahlua into shot glass", "Float Baileys on top", "Float orange liqueur on top"],
-          glassType: requestLanguage === 'pl' ? "kieliszek do shotów" : "shot glass",
-          method: requestLanguage === 'pl' ? "warstwowy" : "layered",
-          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
-          garnish: "",
-          history: ""
-        });
-      }
-      
-      // Check for Whiskey Coke
-      if (hasWhisky && hasCola) {
-        fallbackCocktails.push({
-          name: "Whiskey Coke",
-          nameEn: "Whiskey Coke",
-          available: true,
-          description: requestLanguage === 'pl' ? "Prosty klasyk" : "Simple classic",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "150", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj whisky", "Dopełnij colą"]
-            : ["Fill glass with ice", "Add whiskey", "Top with cola"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: "",
-          history: ""
-        });
-      }
-      
-      // Check for Old Fashioned (without bitters)
-      if (hasWhisky && hasSugar) {
-        fallbackCocktails.push({
-          name: "Old Fashioned",
-          nameEn: "Old Fashioned",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny koktajl whisky" : "Classic whiskey cocktail",
-          category: "classic",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "60", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Kostka cukru" : "Sugar cube", amount: "1", unit: ""},
-            {name: requestLanguage === 'pl' ? "Woda" : "Water", amount: "5", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Umieść kostkę cukru w szklance", "Dodaj odrobinę wody i rozgnieć", "Dodaj whisky i lód", "Zamieszaj"]
-            : ["Place sugar cube in glass", "Add splash of water and muddle", "Add whiskey and ice", "Stir"],
-          glassType: requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "duża kostka" : "large cube",
-          garnish: requestLanguage === 'pl' ? "Skórka pomarańczy" : "Orange peel",
-          history: ""
-        });
-      }
-      
-      // Check for Manhattan (without bitters)
-      if (hasWhisky && hasVermouth) {
-        fallbackCocktails.push({
-          name: "Manhattan",
-          nameEn: "Manhattan",
-          available: true,
-          description: requestLanguage === 'pl' ? "Elegancki koktajl" : "Elegant cocktail",
-          category: "classic",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Whisky" : "Whiskey", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Słodki wermut" : "Sweet vermouth", amount: "25", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Wstrząśnij składniki z lodem", "Przecedź do schłodzonego kieliszka"]
-            : ["Stir ingredients with ice", "Strain into chilled glass"],
-          glassType: requestLanguage === 'pl' ? "kieliszek martini" : "martini glass",
-          method: "stirred",
-          ice: requestLanguage === 'pl' ? "bez lodu" : "no ice",
-          garnish: requestLanguage === 'pl' ? "Wisienka koktajlowa" : "Cocktail cherry",
-          history: ""
-        });
-      }
-      
-      // Check for Rum & Coke (easier than Cuba Libre - no lime needed)
-      if (hasRum && hasCola) {
-        fallbackCocktails.push({
-          name: "Rum & Coke",
-          nameEn: "Rum & Coke",
-          available: true,
-          description: requestLanguage === 'pl' ? "Prosty klasyk" : "Simple classic",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Rum" : "Rum", amount: "50", unit: "ml"},
-            {name: "Cola", amount: "150", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj rum", "Dopełnij colą"]
-            : ["Fill glass with ice", "Add rum", "Top with cola"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Opcjonalnie: limonka" : "Optional: lime",
-          history: ""
-        });
-      }
-      
-      // Check for Vodka Orange/Screwdriver
-      if (hasVodka && hasOrange) {
-        fallbackCocktails.push({
-          name: "Screwdriver",
-          nameEn: "Screwdriver",
-          available: true,
-          description: requestLanguage === 'pl' ? "Klasyczny drink śniadaniowy" : "Classic brunch cocktail",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok pomarańczowy" : "Orange juice", amount: "150", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij sokiem pomarańczowym", "Zamieszaj"]
-            : ["Fill glass with ice", "Add vodka", "Top with orange juice", "Stir"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Plasterek pomarańczy" : "Orange slice",
-          history: ""
-        });
-      }
-      
-      // Check for Vodka Cranberry
-      if (hasVodka && hasCranberry) {
-        fallbackCocktails.push({
-          name: "Vodka Cranberry",
-          nameEn: "Vodka Cranberry",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający i owocowy" : "Refreshing and fruity",
-          category: "highball",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok żurawinowy" : "Cranberry juice", amount: "150", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij szklankę lodem", "Dodaj wódkę", "Dopełnij sokiem żurawinowym", "Zamieszaj"]
-            : ["Fill glass with ice", "Add vodka", "Top with cranberry juice", "Stir"],
-          glassType: "highball",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Limonka" : "Lime wedge",
-          history: ""
-        });
-      }
-      
-      // Check for Moscow Mule
-      if (hasVodka && hasLime && hasGingerBeer) {
-        fallbackCocktails.push({
-          name: "Moscow Mule",
-          nameEn: "Moscow Mule",
-          available: true,
-          description: requestLanguage === 'pl' ? "Orzeźwiający z imbirem" : "Refreshing with ginger",
-          category: "classic",
-          ingredients: [
-            {name: requestLanguage === 'pl' ? "Wódka" : "Vodka", amount: "50", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Sok z limonki" : "Lime juice", amount: "15", unit: "ml"},
-            {name: requestLanguage === 'pl' ? "Piwo imbirowe" : "Ginger beer", amount: "120", unit: "ml"}
-          ],
-          instructions: requestLanguage === 'pl' 
-            ? ["Napełnij kubek miedzą lub szklankę lodem", "Dodaj wódkę i sok z limonki", "Dopełnij piwem imbirowym", "Delikatnie zamieszaj"]
-            : ["Fill copper mug or glass with ice", "Add vodka and lime juice", "Top with ginger beer", "Stir gently"],
-          glassType: requestLanguage === 'pl' ? "kubek miedziany" : "copper mug",
-          method: requestLanguage === 'pl' ? "budowany" : "built",
-          ice: requestLanguage === 'pl' ? "kostki" : "cubed",
-          garnish: requestLanguage === 'pl' ? "Ćwiartka limonki" : "Lime wedge",
-          history: ""
-        });
-      }
-      
-      // CRITICAL: Check if it's an optional ingredient we should NEVER suggest
-      const neverSuggest = ['bitters', 'angostura', 'egg white', 'salt', 'cherry', 'olive', 'orange peel'];
-      
-      // Build cocktails from our logic
       for (const cocktailName of canMake) {
         const recipe = COCKTAIL_RECIPES[cocktailName];
         if (!recipe) continue;
         
-        // Build proper cocktail object based on recipe
         fallbackCocktails.push({
           name: cocktailName,
           nameEn: cocktailName,
           available: true,
           description: requestLanguage === 'pl' ? 'Klasyczny koktajl' : 'Classic cocktail',
           category: recipe.category,
-          ingredients: [], // Would need full recipe details
+          ingredients: recipe.required.map(ing => ({
+            name: requestLanguage === 'pl' ? translateIngredient(ing, 'pl') : ing,
+            amount: '50',
+            unit: 'ml'
+          })),
           instructions: [
             requestLanguage === 'pl' ? 'Przygotuj według klasycznego przepisu' : 'Prepare according to classic recipe'
           ],
@@ -1212,64 +969,10 @@ RETURN ONLY VALID JSON!`;
         });
       }
       
-      // Build almost possible
-      for (const item of almostCanMake) {
-        fallbackAlmostPossible.push({
-          name: item.cocktail,
-          nameEn: item.cocktail,
-          missingIngredient: requestLanguage === 'pl' 
-            ? translateIngredient(item.missing, 'pl')
-            : item.missing,
-          description: requestLanguage === 'pl' ? 'Klasyczny koktajl' : 'Classic cocktail',
-          category: 'classic',
-          ingredients: [],
-          instructions: [],
-          glassType: requestLanguage === 'pl' ? 'szklanka' : 'glass',
-          method: 'stirred',
-          ice: requestLanguage === 'pl' ? 'kostki' : 'cubed',
-          garnish: ''
-        });
-      }
-      
-      // Build shopping list
-      for (const suggestion of shoppingSuggestions) {
-        // CRITICAL: Skip bitters and other optional ingredients
-        const neverSuggestPL = {
-          'bitters': 'bitters',
-          'angostura': 'angostura',
-          'egg white': 'białko jajka',
-          'salt': 'sól'
-        };
-        
-        // Check if this is something we should never suggest
-        let shouldSkip = false;
-        for (const [eng, pl] of Object.entries(neverSuggestPL)) {
-          if (suggestion.ingredient.toLowerCase().includes(eng) || 
-              suggestion.ingredient.toLowerCase().includes(pl)) {
-            shouldSkip = true;
-            break;
-          }
-        }
-        
-        if (shouldSkip) continue;
-        
-        fallbackShoppingList.push({
-          ingredient: requestLanguage === 'pl' 
-            ? translateIngredient(suggestion.ingredient, 'pl')
-            : suggestion.ingredient,
-          unlocksCount: suggestion.unlocksCount,
-          priority: suggestion.unlocksCount > 1 ? 'high' : 'medium',
-          reason: requestLanguage === 'pl'
-            ? `Odblokuje ${suggestion.cocktails.join(', ')}`
-            : `Unlocks ${suggestion.cocktails.join(', ')}`,
-          newCocktails: suggestion.cocktails
-        });
-      }
-      
       suggestions = {
         cocktails: fallbackCocktails,
-        almostPossible: fallbackAlmostPossible,
-        shoppingList: fallbackShoppingList
+        almostPossible: [],
+        shoppingList: []
       };
     }
 
@@ -1304,7 +1007,7 @@ RETURN ONLY VALID JSON!`;
       shoppingList: responseData.shoppingList.length
     });
     
-    // Update user stats
+    // Update user stats (optional)
     if (firebaseUid) {
       await updateUserStats(firebaseUid);
     }
