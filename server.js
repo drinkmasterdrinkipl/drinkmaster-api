@@ -8,6 +8,9 @@ const config = require('./config/config');
 
 const app = express();
 
+// Trust proxy for Render
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
