@@ -8,6 +8,46 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// 🆕 Helper function to save scan to history
+const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse) => {
+  try {
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, skipping history save');
+      return;
+    }
+
+    const historyEntry = {
+      timestamp: new Date(),
+      bottleInfo: {
+        name: bottleInfo.name,
+        brand: bottleInfo.brand,
+        type: bottleInfo.type,
+        country: bottleInfo.country,
+        alcoholContent: bottleInfo.alcoholContent,
+        description: bottleInfo.description,
+        servingSuggestions: bottleInfo.servingSuggestions || [],
+        cocktailSuggestions: bottleInfo.cocktailSuggestions || []
+      },
+      imageData: imageData, // Store base64 image
+      aiResponse: aiResponse,
+      confidence: aiResponse.confidence || 0
+    };
+
+    await User.findOneAndUpdate(
+      { firebaseUid },
+      { 
+        $push: { scanHistory: historyEntry },
+        $inc: { 'stats.totalScans': 1 }
+      },
+      { upsert: true }
+    );
+
+    console.log('✅ Scan saved to history for user:', firebaseUid);
+  } catch (error) {
+    console.error('❌ Error saving scan to history:', error);
+  }
+};
+
 const SCANNER_SYSTEM_PROMPT = `You are a certified sommelier and master bartender analyzing alcohol bottles.
 
 CRITICAL RULES:
@@ -17,6 +57,7 @@ CRITICAL RULES:
 4. Include flavor characteristics in the description
 5. Add one interesting fact about the product
 6. Suggest only classic cocktails appropriate for the spirit type
+7. Provide serving suggestions for the spirit
 
 SPIRIT TYPES:
 Polish (pl):
@@ -55,24 +96,47 @@ OUTPUT FORMAT:
   "country": "[Country in requested language]",
   "alcoholContent": [number only],
   "description": "[3-5 sentences in requested language with flavor profile]",
+  "servingSuggestions": ["[suggestion 1]", "[suggestion 2]"],
   "cocktailSuggestions": ["[cocktail 1]", "[cocktail 2]", "[cocktail 3]"],
-  "funFact": "[One interesting fact in requested language]"
+  "funFact": "[One interesting fact in requested language]",
+  "confidence": [0-100 number representing recognition confidence],
+  "flavorProfile": {
+    "sweetness": [1-10],
+    "bitterness": [1-10],
+    "smokiness": [1-10],
+    "fruitiness": [1-10],
+    "spiciness": [1-10],
+    "smoothness": [1-10],
+    "intensity": [1-10],
+    "complexity": [1-10]
+  }
 }`;
 
 // Main scanner endpoint
 router.post('/', async (req, res) => {
   try {
-    const { image, language } = req.body;
-    const requestLanguage = language || 'en';
+    const { image, language = 'pl', firebaseUid } = req.body;
     
-    console.log(`🔍 Scanner request - Language: ${requestLanguage}`);
+    console.log('🔍 Scanner request received');
+    console.log('📸 Image provided:', !!image);
+    console.log('🌍 Language:', language);
+    console.log('👤 FirebaseUid:', firebaseUid || 'not provided');
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        error: 'Image is required'
+      });
+    }
     
-    const userPrompt = requestLanguage === 'pl' 
-      ? `Identify this alcohol bottle. ALL text must be in POLISH. Use Polish spirit types (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Include flavor characteristics in the description.`
-      : `Identify this alcohol bottle. ALL text must be in ENGLISH. Use English spirit types. Include flavor characteristics in the description.`;
+    const userPrompt = language === 'pl' 
+      ? `Identify this alcohol bottle. ALL text must be in POLISH. Use Polish spirit types (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Include flavor characteristics, serving suggestions, and confidence level.`
+      : `Identify this alcohol bottle. ALL text must be in ENGLISH. Use English spirit types. Include flavor characteristics, serving suggestions, and confidence level.`;
+
+    console.log('🤖 Calling OpenAI Vision API...');
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { 
           role: "system",
@@ -86,15 +150,19 @@ router.post('/', async (req, res) => {
           ]
         }
       ],
-      max_tokens: 800,
-      temperature: 0.2
+      max_tokens: 1000,
+      temperature: 0.3
     });
 
     const aiResponse = response.choices[0].message.content;
-    console.log('🤖 Raw Scanner Response:', aiResponse.substring(0, 200) + '...');
+    console.log('🤖 AI Response received:', aiResponse.substring(0, 200) + '...');
     
     // Clean and parse response
-    let cleanedResponse = aiResponse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    let cleanedResponse = aiResponse;
+    cleanedResponse = cleanedResponse.replace(/```json\s*/gi, '');
+    cleanedResponse = cleanedResponse.replace(/```\s*/gi, '');
+    cleanedResponse = cleanedResponse.trim();
+
     const firstBrace = cleanedResponse.indexOf('{');
     const lastBrace = cleanedResponse.lastIndexOf('}');
     
@@ -102,13 +170,14 @@ router.post('/', async (req, res) => {
       cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
     }
     
-    let parsedData;
+    let bottleData;
     try {
-      parsedData = JSON.parse(cleanedResponse);
+      bottleData = JSON.parse(cleanedResponse);
+      console.log('✅ AI response parsed successfully');
       
       // Ensure alcoholContent is number
-      if (typeof parsedData.alcoholContent === 'string') {
-        parsedData.alcoholContent = parseFloat(parsedData.alcoholContent.replace('%', '')) || 40;
+      if (typeof bottleData.alcoholContent === 'string') {
+        bottleData.alcoholContent = parseFloat(bottleData.alcoholContent.replace('%', '')) || 40;
       }
       
       // Fix cocktail suggestions based on type
@@ -140,88 +209,113 @@ router.post('/', async (req, res) => {
       };
       
       // Apply cocktail suggestions if not provided or empty
-      if (!parsedData.cocktailSuggestions || parsedData.cocktailSuggestions.length === 0) {
-        const map = requestLanguage === 'pl' ? cocktailMap.pl : cocktailMap.en;
-        parsedData.cocktailSuggestions = map[parsedData.type] || 
-          (requestLanguage === 'pl' ? ['Klasyczne koktajle'] : ['Classic cocktails']);
+      if (!bottleData.cocktailSuggestions || bottleData.cocktailSuggestions.length === 0) {
+        const map = language === 'pl' ? cocktailMap.pl : cocktailMap.en;
+        bottleData.cocktailSuggestions = map[bottleData.type] || 
+          (language === 'pl' ? ['Klasyczne koktajle'] : ['Classic cocktails']);
       }
       
-    } catch (e) {
-      console.error('Parse error:', e);
+      // Add serving suggestions if not provided
+      if (!bottleData.servingSuggestions || bottleData.servingSuggestions.length === 0) {
+        const servingMap = {
+          pl: {
+            'whisky': ['Z kostkami lodu', 'Z odrobiną wody'],
+            'wódka': ['Schłodzona, czysta', 'W shotach'],
+            'gin': ['Z tonikiem i cytryną', 'W koktajlach'],
+            'rum': ['Z colą i limonką', 'W koktajlach tropikalnych'],
+            'tequila': ['Z solą i limonką', 'W shotach'],
+            'koniak': ['W kieliszku balonowym', 'Lekko podgrzany'],
+            'likier': ['Na lodzie', 'Jako digestif'],
+            'wino': ['W odpowiedniej temperaturze', 'W kieliszku do wina'],
+            'szampan': ['Dobrze schłodzony', 'W kieliszku flute']
+          },
+          en: {
+            'whiskey': ['On the rocks', 'With a splash of water'],
+            'vodka': ['Chilled, neat', 'In shots'],
+            'gin': ['With tonic and lime', 'In cocktails'],
+            'rum': ['With cola and lime', 'In tropical cocktails'],
+            'tequila': ['With salt and lime', 'In shots'],
+            'cognac': ['In a snifter', 'Slightly warmed'],
+            'liqueur': ['On ice', 'As digestif'],
+            'wine': ['At proper temperature', 'In wine glass'],
+            'champagne': ['Well chilled', 'In flute glass']
+          }
+        };
+        
+        const map = language === 'pl' ? servingMap.pl : servingMap.en;
+        bottleData.servingSuggestions = map[bottleData.type] || 
+          (language === 'pl' ? ['Według preferencji'] : ['According to preference']);
+      }
+      
+    } catch (parseError) {
+      console.error('❌ Parse error, using fallback:', parseError);
       
       // Fallback response
-      parsedData = {
-        name: requestLanguage === 'pl' ? "Nierozpoznany alkohol" : "Unrecognized alcohol",
-        brand: requestLanguage === 'pl' ? "Nieznana marka" : "Unknown brand",
-        type: requestLanguage === 'pl' ? "inny" : "other",
-        country: requestLanguage === 'pl' ? "Nieznany" : "Unknown",
+      bottleData = {
+        name: language === 'pl' ? "Nierozpoznana butelka" : "Unknown Bottle",
+        brand: language === 'pl' ? "Nieznana" : "Unknown",
+        type: language === 'pl' ? "alkohol" : "alcohol",
+        country: language === 'pl' ? "Nieznany" : "Unknown",
         alcoholContent: 40,
-        description: requestLanguage === 'pl' 
-          ? "Nie udało się rozpoznać produktu. Może to być rzadki lub regionalny alkohol. Spróbuj zrobić wyraźniejsze zdjęcie etykiety przy dobrym oświetleniu."
-          : "Could not identify the product. This might be a rare or regional alcohol. Try taking a clearer photo with better lighting.",
-        cocktailSuggestions: requestLanguage === 'pl'
-          ? ["Klasyczne koktajle"]
-          : ["Classic cocktails"],
-        funFact: requestLanguage === 'pl'
-          ? "Każdy alkohol ma swoją unikalną historię i tradycję produkcji."
-          : "Every alcohol has its unique history and production tradition."
+        description: language === 'pl' 
+          ? "Nie udało się rozpoznać produktu. Spróbuj zrobić wyraźniejsze zdjęcie etykiety."
+          : "Could not recognize the product. Try taking a clearer photo of the label.",
+        servingSuggestions: [],
+        cocktailSuggestions: [],
+        funFact: "",
+        confidence: 10,
+        flavorProfile: {
+          sweetness: 5, bitterness: 5, smokiness: 5, fruitiness: 5,
+          spiciness: 5, smoothness: 5, intensity: 5, complexity: 5
+        }
       };
     }
 
+    // Ensure required fields exist
+    bottleData.confidence = bottleData.confidence || 50;
+    bottleData.flavorProfile = bottleData.flavorProfile || {
+      sweetness: 5, bitterness: 5, smokiness: 5, fruitiness: 5,
+      spiciness: 5, smoothness: 5, intensity: 5, complexity: 5
+    };
+
+    // 🆕 Save scan to history automatically
+    await saveScanToHistory(firebaseUid, bottleData, image, bottleData);
+
+    console.log('📤 Sending response to client');
+
     res.json({
-      data: {
-        ...parsedData,
-        confidence: 95
-      }
+      success: true,
+      data: bottleData
     });
-    
+
   } catch (error) {
-    console.error('Scanner error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Scanner error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
-// Save scan to database
+// Legacy save endpoint (for backward compatibility)
 router.post('/save', async (req, res) => {
   try {
     const { firebaseUid, bottleInfo, imageData, aiResponse } = req.body;
     
-    // Find user
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
+    console.log('💾 Legacy save request for user:', firebaseUid);
     
-    // Create scan
-    const scan = await Scan.create({
-      userId: user._id,
-      firebaseUid,
-      bottleInfo,
-      imageData: imageData ? imageData.substring(0, 100) + '...' : null, // Zapisz tylko część dla testów
-      aiResponse
+    await saveScanToHistory(firebaseUid, bottleInfo, imageData, aiResponse);
+    
+    res.json({
+      success: true,
+      message: 'Scan saved successfully'
     });
-    
-    // Update user stats
-    await User.findByIdAndUpdate(user._id, {
-      $inc: { 'stats.totalScans': 1 },
-      lastActive: new Date()
-    });
-    
-    console.log(`✅ Scan saved for user: ${user.email}`);
-    
-    res.json({ 
-      success: true, 
-      scanId: scan._id 
-    });
-    
+
   } catch (error) {
-    console.error('Save scan error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    console.error('❌ Save scan error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -239,22 +333,25 @@ router.get('/history/:firebaseUid', async (req, res) => {
       });
     }
     
-    const scans = await Scan.find({ userId: user._id })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .select('-imageData'); // Nie zwracaj obrazów dla wydajności
+    // Get scans from scanHistory array
+    const allScans = user.scanHistory || [];
+    const sortedScans = allScans.sort((a, b) => 
+      new Date(b.timestamp) - new Date(a.timestamp)
+    );
     
-    const total = await Scan.countDocuments({ userId: user._id });
+    // Paginate
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedScans = sortedScans.slice(startIndex, endIndex);
     
     res.json({ 
       success: true, 
-      scans,
+      scans: paginatedScans,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
+        total: allScans.length,
+        pages: Math.ceil(allScans.length / parseInt(limit))
       }
     });
     
