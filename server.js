@@ -60,6 +60,7 @@ app.get('/', (req, res) => {
       '/api/recipe-generator', 
       '/api/mybar',
       '/api/history',
+      '/api/favorites',
       '/api/user',
       '/health'
     ]
@@ -70,7 +71,8 @@ app.get('/', (req, res) => {
 app.use('/api/scanner', require('./api/scanner'));
 app.use('/api/recipe-generator', require('./api/recipe-generator'));
 app.use('/api/mybar', require('./api/mybar'));
-app.use('/api/history', require('./api/history')); // 🆕 DODANE!
+app.use('/api/history', require('./api/history'));
+app.use('/api/favorites', require('./api/favorites')); // 🆕 DODANE!
 app.use('/api/user', require('./api/user'));
 
 // 404 handler
@@ -98,6 +100,7 @@ app.listen(PORT, () => {
   console.log('   - /api/recipe-generator');
   console.log('   - /api/mybar');
   console.log('   - /api/history');
+  console.log('   - /api/favorites');
   console.log('   - /api/user');
   console.log('   - /health');
   if (config.server.env === 'development') {
