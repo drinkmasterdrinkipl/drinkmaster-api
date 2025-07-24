@@ -9,7 +9,7 @@ router.post('/add', async (req, res) => {
     const { firebaseUid, recipe } = req.body;
     
     console.log('💛 Adding to favorites for user:', firebaseUid);
-    console.log('📖 Recipe:', recipe.name);
+    console.log('📖 Recipe:', recipe?.name);
     
     if (!firebaseUid || !recipe) {
       return res.status(400).json({
@@ -27,9 +27,20 @@ router.post('/add', async (req, res) => {
       });
     }
     
+    // Upewnij się, że favorites istnieje i jest tablicą
+    if (!user.favorites) {
+      user.favorites = [];
+    }
+    
+    // Upewnij się, że favorites jest tablicą
+    if (!Array.isArray(user.favorites)) {
+      console.warn('Favorites was not an array, converting...');
+      user.favorites = [];
+    }
+    
     // Sprawdź czy już nie jest w ulubionych
     const existingIndex = user.favorites.findIndex(
-      fav => fav.recipe && fav.recipe.id === recipe.id
+      fav => fav && fav.recipe && fav.recipe.id === recipe.id
     );
     
     if (existingIndex !== -1) {
@@ -80,10 +91,20 @@ router.delete('/remove/:firebaseUid/:recipeId', async (req, res) => {
       });
     }
     
+    // Upewnij się, że favorites istnieje i jest tablicą
+    if (!user.favorites) {
+      user.favorites = [];
+    }
+    
+    if (!Array.isArray(user.favorites)) {
+      console.warn('Favorites was not an array, converting...');
+      user.favorites = [];
+    }
+    
     // Znajdź i usuń z ulubionych
     const initialLength = user.favorites.length;
     user.favorites = user.favorites.filter(
-      fav => !fav.recipe || fav.recipe.id !== recipeId
+      fav => !fav || !fav.recipe || fav.recipe.id !== recipeId
     );
     
     if (user.favorites.length === initialLength) {
@@ -127,10 +148,31 @@ router.get('/:firebaseUid', async (req, res) => {
       });
     }
     
+    // Upewnij się, że favorites istnieje i jest tablicą
+    if (!user.favorites) {
+      user.favorites = [];
+      await user.save();
+    }
+    
+    if (!Array.isArray(user.favorites)) {
+      console.warn('Favorites was not an array, converting...');
+      user.favorites = [];
+      await user.save();
+    }
+    
+    // Debug
+    console.log('User favorites field exists?', !!user.favorites);
+    console.log('User favorites is array?', Array.isArray(user.favorites));
+    console.log('User favorites length:', user.favorites.length);
+    
     // Sortuj po dacie dodania (najnowsze pierwsze)
     const favorites = user.favorites
-      .filter(fav => fav.recipe) // Tylko te które mają przepis
-      .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))
+      .filter(fav => fav && fav.recipe) // Tylko te które mają przepis
+      .sort((a, b) => {
+        const dateA = new Date(a.addedAt || 0);
+        const dateB = new Date(b.addedAt || 0);
+        return dateB - dateA;
+      })
       .map(fav => ({
         ...fav.recipe,
         addedAt: fav.addedAt
@@ -160,6 +202,8 @@ router.get('/check/:firebaseUid/:recipeId', async (req, res) => {
   try {
     const { firebaseUid, recipeId } = req.params;
     
+    console.log('🔍 Checking favorite for user:', firebaseUid, 'recipe:', recipeId);
+    
     const user = await User.findOne({ firebaseUid });
     if (!user) {
       return res.json({
@@ -168,9 +212,19 @@ router.get('/check/:firebaseUid/:recipeId', async (req, res) => {
       });
     }
     
+    // Upewnij się, że favorites istnieje i jest tablicą
+    if (!user.favorites || !Array.isArray(user.favorites)) {
+      return res.json({
+        success: true,
+        isFavorite: false
+      });
+    }
+    
     const isFavorite = user.favorites.some(
-      fav => fav.recipe && fav.recipe.id === recipeId
+      fav => fav && fav.recipe && fav.recipe.id === recipeId
     );
+    
+    console.log('Is favorite?', isFavorite);
     
     res.json({
       success: true,
@@ -192,13 +246,21 @@ router.post('/migrate', async (req, res) => {
     const { firebaseUid, favorites } = req.body;
     
     console.log('🔄 Migrating favorites for user:', firebaseUid);
-    console.log('📦 Favorites to migrate:', favorites.length);
+    console.log('📦 Favorites to migrate:', favorites?.length || 0);
     
     const user = await User.findOne({ firebaseUid });
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
+      });
+    }
+    
+    // Walidacja danych wejściowych
+    if (!favorites || !Array.isArray(favorites)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid favorites data'
       });
     }
     
