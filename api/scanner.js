@@ -311,27 +311,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Legacy save endpoint (for backward compatibility)
+// Legacy save endpoint - DISABLED to prevent double saves
 router.post('/save', async (req, res) => {
-  try {
-    const { firebaseUid, bottleInfo, imageData, aiResponse } = req.body;
-    
-    console.log('💾 Legacy save request for user:', firebaseUid);
-    
-    await saveScanToHistory(firebaseUid, bottleInfo, imageData, aiResponse);
-    
-    res.json({
-      success: true,
-      message: 'Scan saved successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Save scan error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+  console.log('⚠️ Legacy save endpoint called - ignoring to prevent duplicates');
+  res.json({
+    success: true,
+    message: 'Scan already saved by main endpoint'
+  });
 });
 
 // Get user's scan history
