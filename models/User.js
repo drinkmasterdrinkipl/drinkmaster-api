@@ -36,10 +36,8 @@ const userSchema = new mongoose.Schema({
   // History arrays
   scanHistory: [{
     timestamp: { type: Date, default: Date.now },
-    bottleInfo: {
-      type: mongoose.Schema.Types.Mixed  // Zmiana - teraz akceptuje cały obiekt
-    },
-    imageData: String, // Base64 image
+    bottleInfo: mongoose.Schema.Types.Mixed, // Poprawione - bez { type: ... }
+    imageData: String,
     aiResponse: mongoose.Schema.Types.Mixed,
     confidence: Number
   }],
