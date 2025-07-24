@@ -59,6 +59,60 @@ router.get('/scans/:firebaseUid', async (req, res) => {
   }
 });
 
+// Delete single scan
+router.delete('/scan/:firebaseUid/:scanId', async (req, res) => {
+  try {
+    const { firebaseUid, scanId } = req.params;
+    
+    console.log(`🗑️ Deleting scan ${scanId} for user ${firebaseUid}`);
+    
+    const user = await User.findOne({ firebaseUid });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+    
+    // Znajdź indeks skanu do usunięcia
+    const scanIndex = user.scanHistory.findIndex(
+      scan => scan._id.toString() === scanId
+    );
+    
+    if (scanIndex === -1) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Scan not found' 
+      });
+    }
+    
+    // Usuń skan z tablicy
+    user.scanHistory.splice(scanIndex, 1);
+    
+    // Zaktualizuj statystyki
+    if (user.stats.totalScans > 0) {
+      user.stats.totalScans -= 1;
+    }
+    
+    await user.save();
+    
+    console.log(`✅ Scan deleted successfully`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Scan deleted successfully',
+      remainingScans: user.scanHistory.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Delete scan error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Get user's recipe generation history
 router.get('/recipes/:firebaseUid', async (req, res) => {
   try {
