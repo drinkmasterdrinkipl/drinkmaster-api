@@ -193,12 +193,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { drinkName, cocktailName, ingredients = [], language } = req.body;
+    const { drinkName, cocktailName, ingredients = [], language, firebaseUid } = req.body;
     const finalCocktailName = drinkName || cocktailName;
     const requestLanguage = language || 'en'; // Default to English if not specified
     
     console.log(`📝 Generating recipe for: ${finalCocktailName}`);
     console.log(`🌍 Language requested: ${requestLanguage}`);
+    console.log(`👤 Firebase UID: ${firebaseUid}`);
     console.log(`📦 Full request body:`, JSON.stringify(req.body));
     
     if (!finalCocktailName) {
@@ -561,6 +562,38 @@ RETURN PURE JSON!`;
     console.log('🌍 Language:', requestLanguage);
     console.log('🥃 Glass type:', response.glassType);
     console.log('📊 Ingredients:', response.ingredients.map(i => `${i.name}: ${i.amount}${i.unit}`));
+    
+    // Zapisz przepis w historii użytkownika
+    if (firebaseUid) {
+      try {
+        const User = require('../models/User');
+        const user = await User.findOne({ firebaseUid });
+        
+        if (user) {
+          // Dodaj do historii przepisów
+          if (!user.recipeHistory) {
+            user.recipeHistory = [];
+          }
+          
+          user.recipeHistory.push({
+            timestamp: new Date(),
+            ...recipe,
+            id: response.id
+          });
+          
+          // Ogranicz historię do ostatnich 100 przepisów
+          if (user.recipeHistory.length > 100) {
+            user.recipeHistory = user.recipeHistory.slice(-100);
+          }
+          
+          await user.save();
+          console.log('📝 Recipe saved to user history');
+        }
+      } catch (error) {
+        console.error('Failed to save to user history:', error);
+        // Nie przerywaj, jeśli zapis historii się nie uda
+      }
+    }
     
     res.status(200).json(response);
     

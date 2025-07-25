@@ -183,6 +183,55 @@ router.get('/stats/:firebaseUid', async (req, res) => {
   }
 });
 
+// Increment usage stats
+router.post('/stats/increment/:firebaseUid', async (req, res) => {
+  try {
+    const { firebaseUid } = req.params;
+    const { type } = req.body; // 'scan', 'recipe', lub 'mybar'
+    
+    console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
+    
+    const user = await User.findOne({ firebaseUid });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+    
+    // Zwiększ odpowiednie statystyki
+    switch(type) {
+      case 'scan':
+        user.stats.totalScans = (user.stats.totalScans || 0) + 1;
+        user.stats.dailyScans = (user.stats.dailyScans || 0) + 1;
+        break;
+      case 'recipe':
+        user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
+        user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
+        break;
+      case 'mybar':
+        user.stats.totalMyBar = (user.stats.totalMyBar || 0) + 1;
+        user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
+        break;
+    }
+    
+    await user.save();
+    
+    console.log('✅ Stats updated successfully');
+    
+    res.json({ 
+      success: true, 
+      stats: user.stats
+    });
+  } catch (error) {
+    console.error('❌ Update stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Update subscription
 router.post('/subscription/:firebaseUid', async (req, res) => {
   try {
