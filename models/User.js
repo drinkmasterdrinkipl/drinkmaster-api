@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
   // History arrays
   scanHistory: [{
     timestamp: { type: Date, default: Date.now },
-    bottleInfo: mongoose.Schema.Types.Mixed, // Poprawione - bez { type: ... }
+    bottleInfo: mongoose.Schema.Types.Mixed,
     imageData: String,
     aiResponse: mongoose.Schema.Types.Mixed,
     confidence: Number
@@ -83,7 +83,41 @@ const userSchema = new mongoose.Schema({
     analysis: mongoose.Schema.Types.Mixed
   }],
   
-  // Favorites
+  // NOWE POLE FAVORITES - struktura używana w favorites.js
+  favorites: [{
+    recipe: {
+      id: String,
+      name: String,
+      nameEn: String,
+      category: String,
+      difficulty: String,
+      prepTime: Number,
+      history: String,
+      ingredients: [{
+        name: String,
+        amount: String,
+        unit: String,
+        optional: Boolean
+      }],
+      instructions: [String],
+      glassType: String,
+      garnish: String,
+      tips: [String],
+      alcoholContent: String,
+      tags: [String],
+      method: String,
+      ice: String,
+      servingTemp: String,
+      abv: Number,
+      flavor: String,
+      occasion: String,
+      proTip: String,
+      funFact: String
+    },
+    addedAt: { type: Date, default: Date.now }
+  }],
+  
+  // Stare pole - zachowane dla kompatybilności wstecznej
   favoriteRecipes: [{
     recipeId: String,
     name: String,
@@ -106,6 +140,7 @@ userSchema.index({ email: 1 });
 userSchema.index({ 'scanHistory.timestamp': -1 });
 userSchema.index({ 'recipeHistory.timestamp': -1 });
 userSchema.index({ 'myBarHistory.timestamp': -1 });
+userSchema.index({ 'favorites.addedAt': -1 });
 
 const User = mongoose.model('User', userSchema);
 
