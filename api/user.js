@@ -183,11 +183,11 @@ router.get('/stats/:firebaseUid', async (req, res) => {
   }
 });
 
-// Increment usage stats
+// Increment usage stats - POPRAWIONE
 router.post('/stats/increment/:firebaseUid', async (req, res) => {
   try {
     const { firebaseUid } = req.params;
-    const { type } = req.body; // 'scan', 'recipe', lub 'mybar'
+    const { type } = req.body; // 'scan', 'recipe', lub 'homeBar'
     
     console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
     
@@ -199,25 +199,35 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
       });
     }
     
-    // Zwiększ odpowiednie statystyki
+    // Zwiększ odpowiednie statystyki - POPRAWIONE NAZWY
     switch(type) {
       case 'scan':
+      case 'scans':
         user.stats.totalScans = (user.stats.totalScans || 0) + 1;
         user.stats.dailyScans = (user.stats.dailyScans || 0) + 1;
         break;
       case 'recipe':
+      case 'recipes':
         user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
         user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
         break;
+      case 'homeBar':
       case 'mybar':
-        user.stats.totalMyBar = (user.stats.totalMyBar || 0) + 1;
+        user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
         user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
         break;
+      default:
+        console.warn(`⚠️ Unknown usage type: ${type}`);
+        return res.status(400).json({ 
+          success: false, 
+          error: `Unknown usage type: ${type}` 
+        });
     }
     
     await user.save();
     
     console.log('✅ Stats updated successfully');
+    console.log('Current stats:', user.stats);
     
     res.json({ 
       success: true, 

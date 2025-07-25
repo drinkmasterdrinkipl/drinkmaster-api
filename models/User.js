@@ -16,21 +16,33 @@ const userSchema = new mongoose.Schema({
   displayName: String,
   photoURL: String,
   
-  // Subscription data
-  subscriptionType: {
-    type: String,
-    enum: ['free', 'monthly', 'annual'],
-    default: 'free'
+  // Subscription data - POPRAWIONE
+  subscription: {
+    type: {
+      type: String,
+      enum: ['trial', 'free', 'monthly', 'yearly'],
+      default: 'trial'
+    },
+    startDate: Date,
+    endDate: Date,
+    stripeCustomerId: String,
+    stripeSubscriptionId: String
   },
-  trialStartDate: Date,
-  subscriptionStartDate: Date,
-  subscriptionEndDate: Date,
   
-  // Usage stats
+  // Usage stats - POPRAWIONE I UJEDNOLICONE
   stats: {
+    // Total stats
     totalScans: { type: Number, default: 0 },
     totalRecipes: { type: Number, default: 0 },
-    totalMyBar: { type: Number, default: 0 }
+    totalHomeBarAnalyses: { type: Number, default: 0 },
+    
+    // Daily stats
+    dailyScans: { type: Number, default: 0 },
+    dailyRecipes: { type: Number, default: 0 },
+    dailyHomeBar: { type: Number, default: 0 },
+    
+    // Last reset date
+    lastResetDate: { type: Date, default: Date.now }
   },
   
   // History arrays
@@ -83,7 +95,7 @@ const userSchema = new mongoose.Schema({
     analysis: mongoose.Schema.Types.Mixed
   }],
   
-  // NOWE POLE FAVORITES - struktura używana w favorites.js
+  // Favorites - struktura używana w favorites.js
   favorites: [{
     recipe: {
       id: String,
@@ -117,14 +129,12 @@ const userSchema = new mongoose.Schema({
     addedAt: { type: Date, default: Date.now }
   }],
   
-  // Stare pole - zachowane dla kompatybilności wstecznej
-  favoriteRecipes: [{
-    recipeId: String,
-    name: String,
-    nameEn: String,
-    category: String,
-    addedAt: { type: Date, default: Date.now }
-  }],
+  // Settings
+  settings: {
+    language: { type: String, default: 'pl' },
+    notifications: { type: Boolean, default: true },
+    theme: { type: String, default: 'dark' }
+  },
   
   // Other
   lastActive: { type: Date, default: Date.now },
@@ -133,6 +143,30 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Method to reset daily stats
+userSchema.methods.resetDailyStats = function() {
+  const now = new Date();
+  const lastReset = this.stats.lastResetDate;
+  
+  // Check if it's a new day
+  if (!lastReset || 
+      now.getDate() !== lastReset.getDate() || 
+      now.getMonth() !== lastReset.getMonth() || 
+      now.getFullYear() !== lastReset.getFullYear()) {
+    
+    // Reset daily stats
+    this.stats.dailyScans = 0;
+    this.stats.dailyRecipes = 0;
+    this.stats.dailyHomeBar = 0;
+    this.stats.lastResetDate = now;
+    
+    console.log('📅 Daily stats reset for user:', this.email);
+    return true;
+  }
+  
+  return false;
+};
 
 // Indexes for performance
 userSchema.index({ firebaseUid: 1 });
