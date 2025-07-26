@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -193,16 +193,19 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { drinkName, cocktailName, ingredients = [], language } = req.body;
+    const { drinkName, cocktailName, ingredients = [], language, firebaseUid } = req.body;
     const finalCocktailName = drinkName || cocktailName;
     const requestLanguage = language || 'en'; // Default to English if not specified
     
     console.log(`📝 Generating recipe for: ${finalCocktailName}`);
     console.log(`🌍 Language requested: ${requestLanguage}`);
-    console.log(`📦 Full request body:`, JSON.stringify(req.body));
+    console.log(`👤 FirebaseUid: ${firebaseUid}`);
     
     if (!finalCocktailName) {
-      return res.status(400).json({ error: 'Cocktail name is required' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Cocktail name is required' 
+      });
     }
 
     let userPrompt;
@@ -540,13 +543,17 @@ RETURN PURE JSON!`;
       recipe.occasion = "";
       recipe.proTip = "";
       recipe.tags = [];
+      recipe.tips = "";
+      recipe.funFact = recipe.history || "";
+      recipe.alcoholContent = "medium";
       
     } catch (parseError) {
       console.error('Parse error:', parseError);
       console.error('Raw response:', aiResponse);
       return res.status(500).json({ 
+        success: false,
         error: 'Failed to parse recipe',
-        details: 'Invalid JSON response'
+        message: 'Invalid JSON response'
       });
     }
 
@@ -554,7 +561,7 @@ RETURN PURE JSON!`;
     const response = {
       ...recipe,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString()
+      timestamp: new Date().toISOString()
     };
 
     console.log('✅ Recipe created:', response.name);
@@ -567,8 +574,9 @@ RETURN PURE JSON!`;
   } catch (error) {
     console.error('Recipe generation error:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to generate recipe',
-      details: error.message 
+      message: error.message 
     });
   }
 };
