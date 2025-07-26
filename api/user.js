@@ -183,11 +183,11 @@ router.get('/stats/:firebaseUid', async (req, res) => {
   }
 });
 
-// Increment usage stats - POPRAWIONE
+// Increment usage stats - POPRAWIONE DLA WSZYSTKICH WARIANTÓW
 router.post('/stats/increment/:firebaseUid', async (req, res) => {
   try {
     const { firebaseUid } = req.params;
-    const { type } = req.body; // 'scan', 'recipe', lub 'homeBar'
+    const { type } = req.body;
     
     console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
     
@@ -199,7 +199,7 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
       });
     }
     
-    // Zwiększ odpowiednie statystyki - POPRAWIONE NAZWY
+    // Zwiększ odpowiednie statystyki - OBSŁUGA WSZYSTKICH WARIANTÓW
     switch(type) {
       case 'scan':
       case 'scans':
@@ -211,8 +211,10 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
         user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
         user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
         break;
-      case 'homeBar':
-      case 'mybar':
+      case 'homeBar':  // Frontend wysyła z dużą literą
+      case 'mybar':    // Alternatywna nazwa
+      case 'myBar':    // CamelCase wariant
+      case 'homebar':  // Wszystko małymi
         user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
         user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
         break;
