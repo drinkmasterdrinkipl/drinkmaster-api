@@ -22,14 +22,10 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable for API
 }));
 
-// Global timeout middleware - IMPORTANT: Must be early
+// Global timeout middleware - Fixed to not interfere with normal requests
 app.use((req, res, next) => {
-  // Set timeout for all requests
-  req.setTimeout(30000); // 30 seconds
-  res.setTimeout(30000); // 30 seconds
-  
-  // Handle timeout
-  req.on('timeout', () => {
+  // Set longer timeout
+  const timeout = setTimeout(() => {
     console.error('⏱️ Request timeout:', req.method, req.url);
     if (!res.headersSent) {
       res.status(408).json({ 
@@ -37,8 +33,14 @@ app.use((req, res, next) => {
         error: 'Request timeout - please try again' 
       });
     }
+  }, 30000); // 30 seconds
+  
+  // Clear timeout when response finishes
+  res.on('finish', () => {
+    clearTimeout(timeout);
   });
   
+  // Continue to next middleware
   next();
 });
 
