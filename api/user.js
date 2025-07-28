@@ -107,11 +107,40 @@ router.post('/sync', async (req, res) => {
       });
     }
     
-    let user = await ensureUserExists(firebaseUid, email);
+    // Try to find user by firebaseUid first
+    let user = await User.findOne({ firebaseUid });
+    
+    if (!user && email) {
+      // If not found by UID, check if exists with email
+      const existingUserWithEmail = await User.findOne({ email });
+      
+      if (existingUserWithEmail) {
+        // Update existing user with new Firebase UID
+        console.log('📝 Updating existing user with new Firebase UID');
+        existingUserWithEmail.firebaseUid = firebaseUid;
+        user = existingUserWithEmail;
+      }
+    }
+    
+    if (!user) {
+      // Create new user
+      user = await ensureUserExists(firebaseUid, email);
+    }
     
     // Update user fields
     if (email && user.email !== email) {
-      user.email = email;
+      // Check if another user has this email
+      const otherUser = await User.findOne({ 
+        email, 
+        _id: { $ne: user._id } 
+      });
+      
+      if (otherUser) {
+        console.log('⚠️ Email already used by another user');
+        // Optionally merge accounts or handle differently
+      } else {
+        user.email = email;
+      }
     }
     if (displayName !== undefined) {
       user.displayName = displayName;
