@@ -1,7 +1,10 @@
-// master-api/api/user.js - 🔧 NAPRAWIONY Z AUTO-TWORZENIEM UŻYTKOWNIKA
+// master-api/api/user.js - 🔧 NAPRAWIONY Z DEBOUNCING STATYSTYK
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+
+// 🆕 Map to track recent increments (prevent double counting)
+const recentIncrements = new Map();
 
 // 🆕 Helper function to ensure user exists
 const ensureUserExists = async (firebaseUid, email = null) => {
@@ -11,7 +14,6 @@ const ensureUserExists = async (firebaseUid, email = null) => {
     if (!user) {
       console.log('👤 User not found, creating new user for:', firebaseUid);
       
-      // Jeśli nie mamy email, używamy domyślnego wzorca
       const defaultEmail = email || `${firebaseUid}@temp.com`;
       
       user = await User.create({
@@ -21,7 +23,7 @@ const ensureUserExists = async (firebaseUid, email = null) => {
         subscription: {
           type: 'trial',
           startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dni trial
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         },
         stats: {
           totalScans: 0,
@@ -53,6 +55,16 @@ const ensureUserExists = async (firebaseUid, email = null) => {
   }
 };
 
+// 🆕 Cleanup old increment records (every 30 seconds)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentIncrements.entries()) {
+    if (now - timestamp > 30000) { // 30 seconds
+      recentIncrements.delete(key);
+    }
+  }
+}, 30000);
+
 // Sync user from Firebase
 router.post('/sync', async (req, res) => {
   try {
@@ -67,10 +79,8 @@ router.post('/sync', async (req, res) => {
       });
     }
     
-    // 🔧 NAPRAWIONE: Używamy helper function
     let user = await ensureUserExists(firebaseUid, email);
     
-    // Update user data if provided
     if (email && user.email !== email) {
       user.email = email;
     }
@@ -79,13 +89,11 @@ router.post('/sync', async (req, res) => {
     
     user.lastActive = new Date();
     
-    // Ensure arrays exist
     if (!user.scanHistory) user.scanHistory = [];
     if (!user.recipeHistory) user.recipeHistory = [];
     if (!user.myBarHistory) user.myBarHistory = [];
     if (!user.favorites) user.favorites = [];
     
-    // Reset daily stats if needed
     if (user.resetDailyStats) {
       user.resetDailyStats();
     }
@@ -122,7 +130,6 @@ router.post('/sync', async (req, res) => {
 // Get user profile
 router.get('/profile/:firebaseUid', async (req, res) => {
   try {
-    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
     const user = await ensureUserExists(req.params.firebaseUid);
     
     res.json({ 
@@ -155,10 +162,8 @@ router.get('/profile/:firebaseUid', async (req, res) => {
 // Get user stats
 router.get('/stats/:firebaseUid', async (req, res) => {
   try {
-    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
     const user = await ensureUserExists(req.params.firebaseUid);
     
-    // Reset daily stats if needed
     if (user.resetDailyStats) {
       const wasReset = user.resetDailyStats();
       if (wasReset) {
@@ -166,7 +171,6 @@ router.get('/stats/:firebaseUid', async (req, res) => {
       }
     }
     
-    // 🆕 DODANE: Zwracamy stats w formacie zgodnym z frontendem
     const stats = {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
@@ -177,7 +181,7 @@ router.get('/stats/:firebaseUid', async (req, res) => {
     
     res.json({ 
       success: true, 
-      ...stats, // Bezpośrednio w response (jak oczekuje frontend)
+      ...stats,
       stats: {
         ...user.stats,
         historyCount: {
@@ -197,7 +201,7 @@ router.get('/stats/:firebaseUid', async (req, res) => {
   }
 });
 
-// Increment usage stats - POPRAWIONE Z AUTO-TWORZENIEM UŻYTKOWNIKA
+// Increment usage stats - 🔧 NAPRAWIONY Z DEBOUNCING
 router.post('/stats/increment/:firebaseUid', async (req, res) => {
   try {
     const { firebaseUid } = req.params;
@@ -205,10 +209,36 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
     
     console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
     
-    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    // 🆕 DEBOUNCING: Check if this exact increment happened recently
+    const incrementKey = `${firebaseUid}-${type}`;
+    const now = Date.now();
+    const lastIncrement = recentIncrements.get(incrementKey);
+    
+    if (lastIncrement && (now - lastIncrement) < 5000) { // 5 seconds debounce
+      console.log('⏰ Debouncing: Increment too recent, skipping...');
+      
+      // Return current stats without incrementing
+      const user = await ensureUserExists(firebaseUid);
+      const responseStats = {
+        totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+        totalRecipes: user.stats.totalRecipes || 0,
+        totalScans: user.stats.totalScans || 0
+      };
+      
+      return res.json({ 
+        success: true, 
+        ...responseStats,
+        stats: user.stats,
+        debounced: true // 🆕 Flag to indicate debouncing occurred
+      });
+    }
+    
+    // Record this increment
+    recentIncrements.set(incrementKey, now);
+    
     const user = await ensureUserExists(firebaseUid);
     
-    // Zwiększ odpowiednie statystyki - OBSŁUGA WSZYSTKICH WARIANTÓW
+    // Zwiększ odpowiednie statystyki
     switch(type) {
       case 'scan':
       case 'scans':
@@ -220,10 +250,10 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
         user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
         user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
         break;
-      case 'homeBar':  // Frontend wysyła z dużą literą
-      case 'mybar':    // Alternatywna nazwa
-      case 'myBar':    // CamelCase wariant
-      case 'homebar':  // Wszystko małymi
+      case 'homeBar':
+      case 'mybar':
+      case 'myBar':
+      case 'homebar':
         user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
         user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
         break;
@@ -238,10 +268,9 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
     user.lastActive = new Date();
     await user.save();
     
-    console.log('✅ Stats updated successfully');
+    console.log('✅ Stats incremented successfully (no debounce)');
     console.log('Current stats:', user.stats);
     
-    // 🆕 DODANE: Zwracamy w formacie zgodnym z frontendem
     const responseStats = {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
@@ -250,8 +279,8 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
     
     res.json({ 
       success: true, 
-      ...responseStats, // Bezpośrednio w response
-      stats: user.stats // I w nested stats
+      ...responseStats,
+      stats: user.stats
     });
   } catch (error) {
     console.error('❌ Update stats error:', error);
@@ -262,7 +291,46 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
   }
 });
 
-// 🆕 NOWY ENDPOINT: Auto-sync user from frontend
+// 🆕 Reset user stats (for debugging)
+router.post('/stats/reset/:firebaseUid', async (req, res) => {
+  try {
+    const user = await ensureUserExists(req.params.firebaseUid);
+    
+    // Reset all stats
+    user.stats.totalScans = 0;
+    user.stats.totalRecipes = 0;
+    user.stats.totalHomeBarAnalyses = 0;
+    user.stats.dailyScans = 0;
+    user.stats.dailyRecipes = 0;
+    user.stats.dailyHomeBar = 0;
+    user.stats.lastResetDate = new Date();
+    
+    await user.save();
+    
+    console.log('🔄 Stats reset for user:', user.email);
+    
+    const responseStats = {
+      totalMyBar: 0,
+      totalRecipes: 0,
+      totalScans: 0
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Stats reset successfully',
+      ...responseStats,
+      stats: user.stats
+    });
+  } catch (error) {
+    console.error('❌ Reset stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Auto-sync user from frontend
 router.post('/auto-sync', async (req, res) => {
   try {
     const { firebaseUid, email } = req.body;
@@ -301,7 +369,6 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
   try {
     const { type, endDate, stripeCustomerId, stripeSubscriptionId } = req.body;
     
-    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
     const user = await ensureUserExists(req.params.firebaseUid);
     
     const updateData = {
@@ -344,7 +411,6 @@ router.patch('/settings/:firebaseUid', async (req, res) => {
   try {
     const { language, notifications, theme } = req.body;
     
-    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
     await ensureUserExists(req.params.firebaseUid);
     
     const updateData = {};
