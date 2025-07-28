@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 
 // Set mongoose options for better timeout handling
 mongoose.set('bufferTimeoutMS', 20000); // 20 seconds
-mongoose.set('connectTimeoutMS', 30000); // 30 seconds
+// mongoose.set('connectTimeoutMS', 30000); // REMOVED - not valid in newer versions
 
 // Security middleware
 app.use(helmet({
