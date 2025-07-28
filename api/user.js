@@ -1,12 +1,40 @@
-// master-api/api/user.js - 🔧 NAPRAWIONY Z DEBOUNCING STATYSTYK
+// master-api/api/user.js - KOMPLETNA NAPRAWA Z DEBOUNCING I ERROR HANDLING
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-// 🆕 Map to track recent increments (prevent double counting)
+// Debouncing map to prevent duplicate increments
 const recentIncrements = new Map();
+const DEBOUNCE_TIME = 5000; // 5 seconds
 
-// 🆕 Helper function to ensure user exists
+// Cleanup old increment records every 30 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentIncrements.entries()) {
+    if (now - timestamp > 30000) { // 30 seconds
+      recentIncrements.delete(key);
+    }
+  }
+}, 30000);
+
+// Helper function to normalize usage types
+const normalizeUsageType = (type) => {
+  const typeMap = {
+    'scan': 'scans',
+    'scans': 'scans',
+    'recipe': 'recipes',
+    'recipes': 'recipes',
+    'homeBar': 'homeBar',
+    'homebar': 'homeBar',
+    'mybar': 'homeBar',
+    'myBar': 'homeBar',
+    'bar': 'homeBar'
+  };
+  
+  return typeMap[type] || null;
+};
+
+// Helper function to ensure user exists
 const ensureUserExists = async (firebaseUid, email = null) => {
   try {
     let user = await User.findOne({ firebaseUid });
@@ -23,7 +51,7 @@ const ensureUserExists = async (firebaseUid, email = null) => {
         subscription: {
           type: 'trial',
           startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
         },
         stats: {
           totalScans: 0,
@@ -42,10 +70,12 @@ const ensureUserExists = async (firebaseUid, email = null) => {
           language: 'pl',
           notifications: true,
           theme: 'dark'
-        }
+        },
+        createdAt: new Date(),
+        lastActive: new Date()
       });
       
-      console.log('✅ New user auto-created:', defaultEmail);
+      console.log('✅ New user auto-created:', user.email);
     }
     
     return user;
@@ -55,20 +85,10 @@ const ensureUserExists = async (firebaseUid, email = null) => {
   }
 };
 
-// 🆕 Cleanup old increment records (every 30 seconds)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of recentIncrements.entries()) {
-    if (now - timestamp > 30000) { // 30 seconds
-      recentIncrements.delete(key);
-    }
-  }
-}, 30000);
-
 // Sync user from Firebase
 router.post('/sync', async (req, res) => {
   try {
-    const { firebaseUid, email, displayName, photoURL } = req.body;
+    const { firebaseUid, email, displayName, photoURL, emailVerified } = req.body;
     
     console.log('🔄 Syncing user:', email || firebaseUid);
     
@@ -79,21 +99,39 @@ router.post('/sync', async (req, res) => {
       });
     }
     
+    // Validate email format if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid email format' 
+      });
+    }
+    
     let user = await ensureUserExists(firebaseUid, email);
     
+    // Update user fields
     if (email && user.email !== email) {
       user.email = email;
     }
-    if (displayName) user.displayName = displayName;
-    if (photoURL) user.photoURL = photoURL;
+    if (displayName !== undefined) {
+      user.displayName = displayName;
+    }
+    if (photoURL !== undefined) {
+      user.photoURL = photoURL;
+    }
+    if (emailVerified !== undefined) {
+      user.emailVerified = emailVerified;
+    }
     
     user.lastActive = new Date();
     
+    // Ensure all arrays exist
     if (!user.scanHistory) user.scanHistory = [];
     if (!user.recipeHistory) user.recipeHistory = [];
     if (!user.myBarHistory) user.myBarHistory = [];
     if (!user.favorites) user.favorites = [];
     
+    // Reset daily stats if needed
     if (user.resetDailyStats) {
       user.resetDailyStats();
     }
@@ -104,10 +142,11 @@ router.post('/sync', async (req, res) => {
     res.json({ 
       success: true, 
       user: {
-        id: user._id,
+        id: user._id.toString(),
         firebaseUid: user.firebaseUid,
         email: user.email,
         displayName: user.displayName,
+        emailVerified: user.emailVerified,
         subscription: user.subscription,
         stats: user.stats,
         hasHistory: {
@@ -115,14 +154,25 @@ router.post('/sync', async (req, res) => {
           recipes: user.recipeHistory.length > 0,
           myBar: user.myBarHistory.length > 0,
           favorites: user.favorites.length > 0
-        }
+        },
+        createdAt: user.createdAt,
+        lastActive: user.lastActive
       }
     });
   } catch (error) {
     console.error('❌ User sync error:', error);
+    
+    // Handle specific MongoDB errors
+    if (error.code === 11000) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'User with this email already exists' 
+      });
+    }
+    
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to sync user'
     });
   }
 });
@@ -130,18 +180,31 @@ router.post('/sync', async (req, res) => {
 // Get user profile
 router.get('/profile/:firebaseUid', async (req, res) => {
   try {
-    const user = await ensureUserExists(req.params.firebaseUid);
+    const { firebaseUid } = req.params;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
     
     res.json({ 
       success: true, 
       user: {
-        id: user._id,
+        id: user._id.toString(),
         firebaseUid: user.firebaseUid,
         email: user.email,
         displayName: user.displayName,
+        photoURL: user.photoURL,
+        emailVerified: user.emailVerified,
         subscription: user.subscription,
         stats: user.stats,
+        settings: user.settings,
         createdAt: user.createdAt,
+        lastActive: user.lastActive,
         historyCount: {
           scans: user.scanHistory?.length || 0,
           recipes: user.recipeHistory?.length || 0,
@@ -154,7 +217,7 @@ router.get('/profile/:firebaseUid', async (req, res) => {
     console.error('❌ Get profile error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to get user profile'
     });
   }
 });
@@ -162,8 +225,18 @@ router.get('/profile/:firebaseUid', async (req, res) => {
 // Get user stats
 router.get('/stats/:firebaseUid', async (req, res) => {
   try {
-    const user = await ensureUserExists(req.params.firebaseUid);
+    const { firebaseUid } = req.params;
     
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
+    
+    // Reset daily stats if needed
     if (user.resetDailyStats) {
       const wasReset = user.resetDailyStats();
       if (wasReset) {
@@ -171,17 +244,11 @@ router.get('/stats/:firebaseUid', async (req, res) => {
       }
     }
     
+    // Return stats in both formats for compatibility
     const stats = {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
-      totalScans: user.stats.totalScans || 0
-    };
-    
-    console.log('📊 Returning stats:', stats);
-    
-    res.json({ 
-      success: true, 
-      ...stats,
+      totalScans: user.stats.totalScans || 0,
       stats: {
         ...user.stats,
         historyCount: {
@@ -191,149 +258,28 @@ router.get('/stats/:firebaseUid', async (req, res) => {
           favorites: user.favorites?.length || 0
         }
       }
+    };
+    
+    console.log('📊 Returning stats for user:', user.email);
+    
+    res.json({ 
+      success: true, 
+      ...stats
     });
   } catch (error) {
     console.error('❌ Get stats error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to get user stats'
     });
   }
 });
 
-// Increment usage stats - 🔧 NAPRAWIONY Z DEBOUNCING
+// Increment usage stats with debouncing
 router.post('/stats/increment/:firebaseUid', async (req, res) => {
   try {
     const { firebaseUid } = req.params;
     const { type } = req.body;
-    
-    console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
-    
-    // 🆕 DEBOUNCING: Check if this exact increment happened recently
-    const incrementKey = `${firebaseUid}-${type}`;
-    const now = Date.now();
-    const lastIncrement = recentIncrements.get(incrementKey);
-    
-    if (lastIncrement && (now - lastIncrement) < 5000) { // 5 seconds debounce
-      console.log('⏰ Debouncing: Increment too recent, skipping...');
-      
-      // Return current stats without incrementing
-      const user = await ensureUserExists(firebaseUid);
-      const responseStats = {
-        totalMyBar: user.stats.totalHomeBarAnalyses || 0,
-        totalRecipes: user.stats.totalRecipes || 0,
-        totalScans: user.stats.totalScans || 0
-      };
-      
-      return res.json({ 
-        success: true, 
-        ...responseStats,
-        stats: user.stats,
-        debounced: true // 🆕 Flag to indicate debouncing occurred
-      });
-    }
-    
-    // Record this increment
-    recentIncrements.set(incrementKey, now);
-    
-    const user = await ensureUserExists(firebaseUid);
-    
-    // Zwiększ odpowiednie statystyki
-    switch(type) {
-      case 'scan':
-      case 'scans':
-        user.stats.totalScans = (user.stats.totalScans || 0) + 1;
-        user.stats.dailyScans = (user.stats.dailyScans || 0) + 1;
-        break;
-      case 'recipe':
-      case 'recipes':
-        user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
-        user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
-        break;
-      case 'homeBar':
-      case 'mybar':
-      case 'myBar':
-      case 'homebar':
-        user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
-        user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
-        break;
-      default:
-        console.warn(`⚠️ Unknown usage type: ${type}`);
-        return res.status(400).json({ 
-          success: false, 
-          error: `Unknown usage type: ${type}` 
-        });
-    }
-    
-    user.lastActive = new Date();
-    await user.save();
-    
-    console.log('✅ Stats incremented successfully (no debounce)');
-    console.log('Current stats:', user.stats);
-    
-    const responseStats = {
-      totalMyBar: user.stats.totalHomeBarAnalyses || 0,
-      totalRecipes: user.stats.totalRecipes || 0,
-      totalScans: user.stats.totalScans || 0
-    };
-    
-    res.json({ 
-      success: true, 
-      ...responseStats,
-      stats: user.stats
-    });
-  } catch (error) {
-    console.error('❌ Update stats error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
-// 🆕 Reset user stats (for debugging)
-router.post('/stats/reset/:firebaseUid', async (req, res) => {
-  try {
-    const user = await ensureUserExists(req.params.firebaseUid);
-    
-    // Reset all stats
-    user.stats.totalScans = 0;
-    user.stats.totalRecipes = 0;
-    user.stats.totalHomeBarAnalyses = 0;
-    user.stats.dailyScans = 0;
-    user.stats.dailyRecipes = 0;
-    user.stats.dailyHomeBar = 0;
-    user.stats.lastResetDate = new Date();
-    
-    await user.save();
-    
-    console.log('🔄 Stats reset for user:', user.email);
-    
-    const responseStats = {
-      totalMyBar: 0,
-      totalRecipes: 0,
-      totalScans: 0
-    };
-    
-    res.json({ 
-      success: true, 
-      message: 'Stats reset successfully',
-      ...responseStats,
-      stats: user.stats
-    });
-  } catch (error) {
-    console.error('❌ Reset stats error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
-// Auto-sync user from frontend
-router.post('/auto-sync', async (req, res) => {
-  try {
-    const { firebaseUid, email } = req.body;
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -342,24 +288,159 @@ router.post('/auto-sync', async (req, res) => {
       });
     }
     
-    console.log('🔄 Auto-syncing user:', firebaseUid);
+    if (!type) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Usage type is required' 
+      });
+    }
     
-    const user = await ensureUserExists(firebaseUid, email);
+    console.log(`📊 Stats increment request - Type: ${type}, User: ${firebaseUid}`);
+    
+    // Normalize the type
+    const normalizedType = normalizeUsageType(type);
+    if (!normalizedType) {
+      console.warn(`⚠️ Unknown usage type: ${type}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: `Unknown usage type: ${type}`,
+        validTypes: ['scans', 'recipes', 'homeBar']
+      });
+    }
+    
+    // Check for debouncing
+    const incrementKey = `${firebaseUid}-${normalizedType}`;
+    const now = Date.now();
+    const lastIncrement = recentIncrements.get(incrementKey);
+    
+    if (lastIncrement && (now - lastIncrement) < DEBOUNCE_TIME) {
+      console.log('⏰ Debouncing: Increment too recent, returning current stats...');
+      
+      // Return current stats without incrementing
+      const user = await ensureUserExists(firebaseUid);
+      
+      const responseStats = {
+        totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+        totalRecipes: user.stats.totalRecipes || 0,
+        totalScans: user.stats.totalScans || 0,
+        stats: user.stats,
+        debounced: true
+      };
+      
+      return res.json({ 
+        success: true, 
+        ...responseStats
+      });
+    }
+    
+    // Record this increment
+    recentIncrements.set(incrementKey, now);
+    
+    // Get or create user
+    const user = await ensureUserExists(firebaseUid);
+    
+    // Reset daily stats if needed
+    if (user.resetDailyStats) {
+      user.resetDailyStats();
+    }
+    
+    // Increment appropriate stats
+    switch(normalizedType) {
+      case 'scans':
+        user.stats.totalScans = (user.stats.totalScans || 0) + 1;
+        user.stats.dailyScans = (user.stats.dailyScans || 0) + 1;
+        break;
+      case 'recipes':
+        user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
+        user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
+        break;
+      case 'homeBar':
+        user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
+        user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
+        break;
+    }
+    
+    user.lastActive = new Date();
+    await user.save();
+    
+    console.log('✅ Stats incremented successfully');
+    console.log('Current stats:', {
+      totalScans: user.stats.totalScans,
+      totalRecipes: user.stats.totalRecipes,
+      totalHomeBar: user.stats.totalHomeBarAnalyses
+    });
+    
+    // Return stats in compatible format
+    const responseStats = {
+      totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+      totalRecipes: user.stats.totalRecipes || 0,
+      totalScans: user.stats.totalScans || 0,
+      stats: user.stats
+    };
     
     res.json({ 
-      success: true,
-      message: 'User auto-synced successfully',
-      user: {
-        id: user._id,
-        email: user.email,
-        firebaseUid: user.firebaseUid
-      }
+      success: true, 
+      ...responseStats
     });
   } catch (error) {
-    console.error('❌ Auto-sync error:', error);
+    console.error('❌ Update stats error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to update stats'
+    });
+  }
+});
+
+// Reset user stats (for debugging/admin)
+router.post('/stats/reset/:firebaseUid', async (req, res) => {
+  try {
+    const { firebaseUid } = req.params;
+    const { resetType = 'all' } = req.body; // 'all', 'daily', or 'total'
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
+    
+    // Reset based on type
+    if (resetType === 'daily' || resetType === 'all') {
+      user.stats.dailyScans = 0;
+      user.stats.dailyRecipes = 0;
+      user.stats.dailyHomeBar = 0;
+      user.stats.lastResetDate = new Date();
+    }
+    
+    if (resetType === 'total' || resetType === 'all') {
+      user.stats.totalScans = 0;
+      user.stats.totalRecipes = 0;
+      user.stats.totalHomeBarAnalyses = 0;
+    }
+    
+    await user.save();
+    
+    console.log(`🔄 Stats reset (${resetType}) for user:`, user.email);
+    
+    const responseStats = {
+      totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+      totalRecipes: user.stats.totalRecipes || 0,
+      totalScans: user.stats.totalScans || 0,
+      stats: user.stats
+    };
+    
+    res.json({ 
+      success: true, 
+      message: `Stats reset successfully (${resetType})`,
+      ...responseStats
+    });
+  } catch (error) {
+    console.error('❌ Reset stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to reset stats'
     });
   }
 });
@@ -367,41 +448,59 @@ router.post('/auto-sync', async (req, res) => {
 // Update subscription
 router.post('/subscription/:firebaseUid', async (req, res) => {
   try {
+    const { firebaseUid } = req.params;
     const { type, endDate, stripeCustomerId, stripeSubscriptionId } = req.body;
     
-    const user = await ensureUserExists(req.params.firebaseUid);
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
     
-    const updateData = {
-      'subscription.type': type,
-      'subscription.startDate': new Date(),
-      lastActive: new Date()
-    };
+    if (!type || !['trial', 'free', 'monthly', 'yearly'].includes(type)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid subscription type is required (trial, free, monthly, yearly)' 
+      });
+    }
     
-    if (endDate) updateData['subscription.endDate'] = new Date(endDate);
-    if (stripeCustomerId) updateData['subscription.stripeCustomerId'] = stripeCustomerId;
-    if (stripeSubscriptionId) updateData['subscription.stripeSubscriptionId'] = stripeSubscriptionId;
+    const user = await ensureUserExists(firebaseUid);
     
-    const updatedUser = await User.findOneAndUpdate(
-      { firebaseUid: req.params.firebaseUid },
-      { $set: updateData },
-      { new: true }
-    );
+    // Update subscription
+    user.subscription.type = type;
+    user.subscription.startDate = new Date();
     
-    console.log(`✅ Subscription updated for ${updatedUser.email}: ${type}`);
+    if (endDate) {
+      user.subscription.endDate = new Date(endDate);
+    }
+    
+    if (stripeCustomerId) {
+      user.subscription.stripeCustomerId = stripeCustomerId;
+    }
+    
+    if (stripeSubscriptionId) {
+      user.subscription.stripeSubscriptionId = stripeSubscriptionId;
+    }
+    
+    user.lastActive = new Date();
+    await user.save();
+    
+    console.log(`✅ Subscription updated for ${user.email}: ${type}`);
     
     res.json({ 
       success: true, 
       user: {
-        id: updatedUser._id,
-        email: updatedUser.email,
-        subscription: updatedUser.subscription
+        id: user._id.toString(),
+        email: user.email,
+        subscription: user.subscription
       }
     });
   } catch (error) {
     console.error('❌ Update subscription error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to update subscription'
     });
   }
 });
@@ -409,21 +508,35 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
 // Update user settings
 router.patch('/settings/:firebaseUid', async (req, res) => {
   try {
+    const { firebaseUid } = req.params;
     const { language, notifications, theme } = req.body;
     
-    await ensureUserExists(req.params.firebaseUid);
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
     
-    const updateData = {};
-    if (language) updateData['settings.language'] = language;
-    if (notifications !== undefined) updateData['settings.notifications'] = notifications;
-    if (theme) updateData['settings.theme'] = theme;
-    updateData.lastActive = new Date();
+    const user = await ensureUserExists(firebaseUid);
     
-    const user = await User.findOneAndUpdate(
-      { firebaseUid: req.params.firebaseUid },
-      { $set: updateData },
-      { new: true }
-    );
+    // Update only provided settings
+    if (language && ['pl', 'en'].includes(language)) {
+      user.settings.language = language;
+    }
+    
+    if (notifications !== undefined) {
+      user.settings.notifications = Boolean(notifications);
+    }
+    
+    if (theme && ['dark', 'light'].includes(theme)) {
+      user.settings.theme = theme;
+    }
+    
+    user.lastActive = new Date();
+    await user.save();
+    
+    console.log(`⚙️ Settings updated for ${user.email}`);
     
     res.json({ 
       success: true, 
@@ -433,15 +546,24 @@ router.patch('/settings/:firebaseUid', async (req, res) => {
     console.error('❌ Update settings error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to update settings'
     });
   }
 });
 
-// Delete user (for GDPR compliance)
+// Delete user (GDPR compliance)
 router.delete('/:firebaseUid', async (req, res) => {
   try {
-    const user = await User.findOneAndDelete({ firebaseUid: req.params.firebaseUid });
+    const { firebaseUid } = req.params;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    const user = await User.findOneAndDelete({ firebaseUid });
     
     if (!user) {
       return res.status(404).json({ 
@@ -454,13 +576,145 @@ router.delete('/:firebaseUid', async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'User deleted successfully' 
+      message: 'User deleted successfully',
+      deletedUser: {
+        email: user.email,
+        id: user._id.toString()
+      }
     });
   } catch (error) {
     console.error('❌ Delete user error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to delete user'
+    });
+  }
+});
+
+// Get user favorites
+router.get('/favorites/:firebaseUid', async (req, res) => {
+  try {
+    const { firebaseUid } = req.params;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
+    
+    res.json({ 
+      success: true, 
+      favorites: user.favorites || [],
+      count: (user.favorites || []).length
+    });
+  } catch (error) {
+    console.error('❌ Get favorites error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to get favorites'
+    });
+  }
+});
+
+// Add favorite
+router.post('/favorites/:firebaseUid', async (req, res) => {
+  try {
+    const { firebaseUid } = req.params;
+    const { recipe } = req.body;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    if (!recipe || !recipe.id || !recipe.name) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid recipe object is required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
+    
+    // Check if already favorited
+    const existingIndex = user.favorites.findIndex(f => f.recipe.id === recipe.id);
+    if (existingIndex !== -1) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'Recipe already in favorites' 
+      });
+    }
+    
+    // Add to favorites
+    user.favorites.push({
+      recipe: recipe,
+      addedAt: new Date()
+    });
+    
+    user.lastActive = new Date();
+    await user.save();
+    
+    console.log(`⭐ Favorite added for ${user.email}: ${recipe.name}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Favorite added successfully',
+      favoritesCount: user.favorites.length
+    });
+  } catch (error) {
+    console.error('❌ Add favorite error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to add favorite'
+    });
+  }
+});
+
+// Remove favorite
+router.delete('/favorites/:firebaseUid/:recipeId', async (req, res) => {
+  try {
+    const { firebaseUid, recipeId } = req.params;
+    
+    if (!firebaseUid || !recipeId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID and recipe ID are required' 
+      });
+    }
+    
+    const user = await ensureUserExists(firebaseUid);
+    
+    // Remove from favorites
+    const initialLength = user.favorites.length;
+    user.favorites = user.favorites.filter(f => f.recipe.id !== recipeId);
+    
+    if (user.favorites.length === initialLength) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Recipe not found in favorites' 
+      });
+    }
+    
+    user.lastActive = new Date();
+    await user.save();
+    
+    console.log(`⭐ Favorite removed for ${user.email}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Favorite removed successfully',
+      favoritesCount: user.favorites.length
+    });
+  } catch (error) {
+    console.error('❌ Remove favorite error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to remove favorite'
     });
   }
 });

@@ -1,10 +1,10 @@
-// master-api/server.js - 🔧 POPRAWIONE ROUTING + STATS ENDPOINT
-
+// master-api/server.js - KOMPLETNA NAPRAWA Z TIMEOUT I ROUTING
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const config = require('./config/config');
 
@@ -13,41 +13,111 @@ const app = express();
 // Trust proxy for Render
 app.set('trust proxy', 1);
 
+// Set mongoose options for better timeout handling
+mongoose.set('bufferTimeoutMS', 20000); // 20 seconds
+mongoose.set('connectTimeoutMS', 30000); // 30 seconds
+
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable for API
+}));
+
+// Global timeout middleware - IMPORTANT: Must be early
+app.use((req, res, next) => {
+  // Set timeout for all requests
+  req.setTimeout(30000); // 30 seconds
+  res.setTimeout(30000); // 30 seconds
+  
+  // Handle timeout
+  req.on('timeout', () => {
+    console.error('⏱️ Request timeout:', req.method, req.url);
+    if (!res.headersSent) {
+      res.status(408).json({ 
+        success: false, 
+        error: 'Request timeout - please try again' 
+      });
+    }
+  });
+  
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB with retry logic
+const connectWithRetry = async () => {
+  try {
+    await connectDB();
+    console.log('✅ MongoDB connected successfully');
+  } catch (err) {
+    console.error('❌ MongoDB connection error:', err);
+    console.log('🔄 Retrying in 5 seconds...');
+    setTimeout(connectWithRetry, 5000);
+  }
+};
+connectWithRetry();
 
 // Middleware
-app.use(cors(config.cors));
+app.use(cors({
+  ...config.cors,
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging in development
-if (config.server.env === 'development') {
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  // Log request
+  console.log(`📥 ${req.method} ${req.path} - ${req.ip}`);
+  
+  // Log response when finished
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`📤 ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
   });
-}
+  
+  next();
+});
 
-// Health check
+// Health check with detailed status
 app.get('/health', async (req, res) => {
-  const dbState = require('mongoose').connection.readyState;
+  const dbState = mongoose.connection.readyState;
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
   
-  res.json({ 
-    status: 'OK',
-    database: states[dbState],
+  const health = {
+    status: dbState === 1 ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
     environment: config.server.env,
+    database: {
+      status: states[dbState],
+      ready: dbState === 1
+    },
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      unit: 'MB'
+    }
+  };
+  
+  res.status(dbState === 1 ? 200 : 503).json(health);
+});
+
+// API status endpoint
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'operational',
+    version: '1.0.0',
     timestamp: new Date().toISOString()
   });
 });
@@ -57,28 +127,35 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'DrinkMaster API', 
     version: '1.0.0',
-    endpoints: [
-      '/api/scanner',
-      '/api/recipe-generator', 
-      '/api/mybar',
-      '/api/history',
-      '/api/favorites',
-      '/api/user',
-      '/api/user/stats/increment/:firebaseUid', // 🆕 DODANE
-      '/health'
-    ]
+    status: 'running',
+    documentation: 'https://drinkmaster.app/api/docs',
+    endpoints: {
+      health: '/health',
+      status: '/api/status',
+      scanner: '/api/scanner',
+      recipeGenerator: '/api/recipe-generator',
+      myBar: '/api/mybar',
+      user: {
+        sync: '/api/user/sync',
+        profile: '/api/user/profile/:firebaseUid',
+        stats: '/api/user/stats/:firebaseUid',
+        statsIncrement: '/api/user/stats/increment/:firebaseUid'
+      },
+      history: '/api/history',
+      favorites: '/api/favorites'
+    }
   });
 });
 
-// API Routes - 🔧 POPRAWIONE KOLEJNOŚĆ
+// API Routes - Order matters!
 app.use('/api/scanner', require('./api/scanner'));
 app.use('/api/recipe-generator', require('./api/recipe-generator'));
 app.use('/api/mybar', require('./api/mybar'));
 app.use('/api/history', require('./api/history'));
 app.use('/api/favorites', require('./api/favorites'));
-app.use('/api/user', require('./api/user')); // ✅ Ten endpoint zawiera stats/increment
+app.use('/api/user', require('./api/user')); // This includes /api/user/stats/increment/:uid
 
-// 🆕 DODATKOWY ENDPOINT STATS - dla kompatybilności jeśli app szuka bez /user
+// Legacy stats endpoint for backward compatibility
 app.post('/api/stats/increment/:firebaseUid', async (req, res) => {
   console.log('📊 Legacy stats endpoint called - redirecting to /api/user/stats/increment');
   
@@ -86,59 +163,95 @@ app.post('/api/stats/increment/:firebaseUid', async (req, res) => {
     const { firebaseUid } = req.params;
     const { type } = req.body;
     
-    console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
-    
-    const User = require('./models/User');
-    const user = await User.findOne({ firebaseUid });
-    
-    if (!user) {
-      return res.status(404).json({ 
+    if (!firebaseUid) {
+      return res.status(400).json({ 
         success: false, 
-        error: 'User not found' 
+        error: 'Firebase UID is required' 
       });
     }
     
-    // Zwiększ odpowiednie statystyki - OBSŁUGA WSZYSTKICH WARIANTÓW
-    switch(type) {
-      case 'scan':
+    if (!type) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Usage type is required' 
+      });
+    }
+    
+    console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
+    
+    // Import User model
+    const User = require('./models/User');
+    
+    // Ensure user exists
+    let user = await User.findOne({ firebaseUid });
+    if (!user) {
+      console.log('👤 User not found, creating new user for stats');
+      user = await User.create({
+        firebaseUid,
+        email: `${firebaseUid}@temp.com`,
+        stats: {
+          totalScans: 0,
+          totalRecipes: 0,
+          totalHomeBarAnalyses: 0,
+          dailyScans: 0,
+          dailyRecipes: 0,
+          dailyHomeBar: 0,
+          lastResetDate: new Date()
+        }
+      });
+    }
+    
+    // Normalize type
+    const typeMap = {
+      'scan': 'scans',
+      'scans': 'scans',
+      'recipe': 'recipes',
+      'recipes': 'recipes',
+      'homeBar': 'homeBar',
+      'homebar': 'homeBar',
+      'mybar': 'homeBar',
+      'myBar': 'homeBar'
+    };
+    
+    const normalizedType = typeMap[type];
+    if (!normalizedType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Unknown usage type: ${type}` 
+      });
+    }
+    
+    // Update stats
+    switch(normalizedType) {
       case 'scans':
         user.stats.totalScans = (user.stats.totalScans || 0) + 1;
         user.stats.dailyScans = (user.stats.dailyScans || 0) + 1;
         break;
-      case 'recipe':
       case 'recipes':
         user.stats.totalRecipes = (user.stats.totalRecipes || 0) + 1;
         user.stats.dailyRecipes = (user.stats.dailyRecipes || 0) + 1;
         break;
-      case 'homeBar':  // Frontend wysyła z dużą literą
-      case 'mybar':    // Alternatywna nazwa
-      case 'myBar':    // CamelCase wariant
-      case 'homebar':  // Wszystko małymi
+      case 'homeBar':
         user.stats.totalHomeBarAnalyses = (user.stats.totalHomeBarAnalyses || 0) + 1;
         user.stats.dailyHomeBar = (user.stats.dailyHomeBar || 0) + 1;
         break;
-      default:
-        console.warn(`⚠️ Unknown usage type: ${type}`);
-        return res.status(400).json({ 
-          success: false, 
-          error: `Unknown usage type: ${type}` 
-        });
     }
     
+    user.lastActive = new Date();
     await user.save();
     
     console.log('✅ Stats updated successfully via legacy endpoint');
-    console.log('Current stats:', user.stats);
     
     res.json({ 
       success: true, 
-      stats: user.stats
+      stats: user.stats,
+      message: 'Stats updated successfully'
     });
   } catch (error) {
     console.error('❌ Legacy stats endpoint error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to update stats'
     });
   }
 });
@@ -149,48 +262,98 @@ app.use((req, res) => {
   res.status(404).json({ 
     success: false,
     error: 'Route not found',
-    requestedUrl: req.originalUrl,
-    availableEndpoints: [
-      '/api/scanner',
-      '/api/recipe-generator', 
-      '/api/mybar',
-      '/api/history',
-      '/api/favorites',
-      '/api/user',
-      '/api/user/stats/increment/:firebaseUid',
-      '/api/stats/increment/:firebaseUid', // Legacy
-      '/health'
-    ]
+    message: `The requested endpoint ${req.originalUrl} does not exist`,
+    suggestion: 'Please check the API documentation for available endpoints'
   });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('❌ Server error:', err.stack);
+  console.error('❌ Server error:', err);
+  
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation error',
+      details: Object.values(err.errors).map(e => e.message)
+    });
+  }
+  
+  // MongoDB duplicate key error
+  if (err.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      error: 'Duplicate key error',
+      details: 'This resource already exists'
+    });
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid token'
+    });
+  }
+  
+  // Default error
   const status = err.status || 500;
   res.status(status).json({ 
     success: false,
     error: config.server.env === 'production' 
       ? 'Something went wrong!' 
-      : err.message 
+      : err.message,
+    ...(config.server.env !== 'production' && { stack: err.stack })
   });
 });
 
-const PORT = config.server.port;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🔧 Environment: ${config.server.env}`);
-  console.log('📋 Available endpoints:');
-  console.log('   - /api/scanner');
-  console.log('   - /api/recipe-generator');
-  console.log('   - /api/mybar');
-  console.log('   - /api/history');
-  console.log('   - /api/favorites');
-  console.log('   - /api/user');
-  console.log('   - /api/user/stats/increment/:firebaseUid'); // ✅ GŁÓWNY
-  console.log('   - /api/stats/increment/:firebaseUid');      // 🆕 LEGACY
-  console.log('   - /health');
-  if (config.server.env === 'development') {
-    console.log(`🔗 http://localhost:${PORT}`);
+// Graceful shutdown
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 ${signal} received, starting graceful shutdown...`);
+  
+  // Close MongoDB connection
+  try {
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+  } catch (err) {
+    console.error('❌ Error closing MongoDB connection:', err);
   }
+  
+  // Exit process
+  process.exit(0);
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Start server
+const PORT = config.server.port || 3000;
+const server = app.listen(PORT, () => {
+  console.log(`
+🚀 DrinkMaster API Server Started
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📍 Port: ${PORT}
+🔧 Environment: ${config.server.env}
+🌐 URL: ${config.server.env === 'production' ? config.server.url : `http://localhost:${PORT}`}
+📊 MongoDB: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Connecting...'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Available Endpoints:
+   • Health Check: /health
+   • API Status: /api/status
+   • Scanner: /api/scanner
+   • Recipe Generator: /api/recipe-generator
+   • My Bar: /api/mybar
+   • User Management: /api/user/*
+   • Stats Increment: /api/user/stats/increment/:uid
+   • History: /api/history
+   • Favorites: /api/favorites
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`);
 });
+
+// Server timeout
+server.timeout = 30000; // 30 seconds
+
+module.exports = app;
