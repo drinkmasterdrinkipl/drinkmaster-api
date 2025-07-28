@@ -1,4 +1,4 @@
-// master-api/api/user.js - KOMPLETNA NAPRAWA Z DEBOUNCING I ERROR HANDLING
+// master-api/api/user.js - NAPRAWIONY SYNC
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
@@ -85,7 +85,7 @@ const ensureUserExists = async (firebaseUid, email = null) => {
   }
 };
 
-// Sync user from Firebase
+// Sync user from Firebase - FIXED VERSION
 router.post('/sync', async (req, res) => {
   try {
     const { firebaseUid, email, displayName, photoURL, emailVerified } = req.body;
@@ -107,49 +107,91 @@ router.post('/sync', async (req, res) => {
       });
     }
     
-    // Try to find user by firebaseUid first
+    // First, try to find user by firebaseUid
     let user = await User.findOne({ firebaseUid });
     
     if (!user && email) {
-      // If not found by UID, check if exists with email
+      // If not found by UID, check if user exists with this email
       const existingUserWithEmail = await User.findOne({ email });
       
       if (existingUserWithEmail) {
-        // Update existing user with new Firebase UID
-        console.log('📝 Updating existing user with new Firebase UID');
-        existingUserWithEmail.firebaseUid = firebaseUid;
-        user = existingUserWithEmail;
+        // Check if this email belongs to a different Firebase UID
+        if (existingUserWithEmail.firebaseUid !== firebaseUid) {
+          console.log('⚠️ Email already exists with different Firebase UID');
+          console.log('Existing UID:', existingUserWithEmail.firebaseUid);
+          console.log('New UID:', firebaseUid);
+          
+          // Update the existing user with new Firebase UID
+          existingUserWithEmail.firebaseUid = firebaseUid;
+          user = existingUserWithEmail;
+          console.log('✅ Updated existing user with new Firebase UID');
+        } else {
+          user = existingUserWithEmail;
+        }
       }
     }
     
+    // If still no user found, create new one
     if (!user) {
-      // Create new user
-      user = await ensureUserExists(firebaseUid, email);
-    }
-    
-    // Update user fields
-    if (email && user.email !== email) {
-      // Check if another user has this email
-      const otherUser = await User.findOne({ 
-        email, 
-        _id: { $ne: user._id } 
+      console.log('👤 Creating new user');
+      user = new User({
+        firebaseUid,
+        email: email || `${firebaseUid}@temp.com`,
+        displayName: displayName || 'User',
+        photoURL,
+        emailVerified,
+        subscription: {
+          type: 'trial',
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        },
+        stats: {
+          totalScans: 0,
+          totalRecipes: 0,
+          totalHomeBarAnalyses: 0,
+          dailyScans: 0,
+          dailyRecipes: 0,
+          dailyHomeBar: 0,
+          lastResetDate: new Date()
+        },
+        scanHistory: [],
+        recipeHistory: [],
+        myBarHistory: [],
+        favorites: [],
+        settings: {
+          language: 'pl',
+          notifications: true,
+          theme: 'dark'
+        },
+        lastActive: new Date()
       });
-      
-      if (otherUser) {
-        console.log('⚠️ Email already used by another user');
-        // Optionally merge accounts or handle differently
-      } else {
-        user.email = email;
+    } else {
+      // Update existing user fields
+      if (email && user.email !== email) {
+        // Check if another user has this email
+        const otherUser = await User.findOne({ 
+          email, 
+          _id: { $ne: user._id } 
+        });
+        
+        if (!otherUser) {
+          user.email = email;
+        } else {
+          console.log('⚠️ Cannot update email - already used by another account');
+        }
       }
-    }
-    if (displayName !== undefined) {
-      user.displayName = displayName;
-    }
-    if (photoURL !== undefined) {
-      user.photoURL = photoURL;
-    }
-    if (emailVerified !== undefined) {
-      user.emailVerified = emailVerified;
+      
+      if (displayName !== undefined && displayName !== user.displayName) {
+        user.displayName = displayName;
+      }
+      
+      if (photoURL !== undefined && photoURL !== user.photoURL) {
+        user.photoURL = photoURL;
+      }
+      
+      if (emailVerified !== undefined && emailVerified !== user.emailVerified) {
+        user.emailVerified = emailVerified;
+      }
     }
     
     user.lastActive = new Date();
@@ -193,9 +235,42 @@ router.post('/sync', async (req, res) => {
     
     // Handle specific MongoDB errors
     if (error.code === 11000) {
+      // Duplicate key error - try to handle gracefully
+      const duplicateField = Object.keys(error.keyPattern)[0];
+      const duplicateValue = error.keyValue[duplicateField];
+      
+      console.log(`🔧 Attempting to fix duplicate ${duplicateField}: ${duplicateValue}`);
+      
+      try {
+        // If it's email duplicate, find and update the existing user
+        if (duplicateField === 'email') {
+          const existingUser = await User.findOne({ email: duplicateValue });
+          if (existingUser && existingUser.firebaseUid !== req.body.firebaseUid) {
+            // Update Firebase UID
+            existingUser.firebaseUid = req.body.firebaseUid;
+            existingUser.lastActive = new Date();
+            await existingUser.save();
+            
+            return res.json({ 
+              success: true, 
+              user: {
+                id: existingUser._id.toString(),
+                firebaseUid: existingUser.firebaseUid,
+                email: existingUser.email,
+                displayName: existingUser.displayName,
+                subscription: existingUser.subscription,
+                stats: existingUser.stats
+              }
+            });
+          }
+        }
+      } catch (fixError) {
+        console.error('❌ Failed to fix duplicate:', fixError);
+      }
+      
       return res.status(409).json({ 
         success: false, 
-        error: 'User with this email already exists' 
+        error: `User with this ${duplicateField} already exists` 
       });
     }
     
