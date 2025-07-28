@@ -1,35 +1,27 @@
-// master-api/api/user.js
+// master-api/api/user.js - 🔧 NAPRAWIONY Z AUTO-TWORZENIEM UŻYTKOWNIKA
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User'); // Tylko import, bez tworzenia modelu!
+const User = require('../models/User');
 
-// Sync user from Firebase
-router.post('/sync', async (req, res) => {
+// 🆕 Helper function to ensure user exists
+const ensureUserExists = async (firebaseUid, email = null) => {
   try {
-    const { firebaseUid, email, displayName, photoURL } = req.body;
-    
-    console.log('🔄 Syncing user:', email);
-    
-    if (!firebaseUid || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields' 
-      });
-    }
-    
     let user = await User.findOne({ firebaseUid });
     
     if (!user) {
-      // Create new user with 3-day trial
+      console.log('👤 User not found, creating new user for:', firebaseUid);
+      
+      // Jeśli nie mamy email, używamy domyślnego wzorca
+      const defaultEmail = email || `${firebaseUid}@temp.com`;
+      
       user = await User.create({
         firebaseUid,
-        email,
-        displayName,
-        photoURL,
+        email: defaultEmail,
+        displayName: 'User',
         subscription: {
           type: 'trial',
           startDate: new Date(),
-          endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 dni
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dni trial
         },
         stats: {
           totalScans: 0,
@@ -43,39 +35,63 @@ router.post('/sync', async (req, res) => {
         scanHistory: [],
         recipeHistory: [],
         myBarHistory: [],
-        favorites: [] // Używamy nowej struktury
+        favorites: [],
+        settings: {
+          language: 'pl',
+          notifications: true,
+          theme: 'dark'
+        }
       });
-      console.log('✅ New user created:', email);
-    } else {
-      // Update existing user
-      user.lastActive = new Date();
-      if (displayName) user.displayName = displayName;
-      if (photoURL) user.photoURL = photoURL;
       
-      // Ensure arrays exist for existing users
-      if (!user.scanHistory) user.scanHistory = [];
-      if (!user.recipeHistory) user.recipeHistory = [];
-      if (!user.myBarHistory) user.myBarHistory = [];
-      if (!user.favorites) user.favorites = [];
-      
-      // Migracja ze starego favoriteRecipes do nowego favorites
-      if (user.favoriteRecipes && user.favoriteRecipes.length > 0 && user.favorites.length === 0) {
-        console.log('🔄 Migrating old favorites structure...');
-        user.favorites = user.favoriteRecipes.map(recipe => ({
-          recipe: recipe,
-          addedAt: new Date()
-        }));
-        user.favoriteRecipes = undefined; // Usuń stare pole
-      }
-      
-      // Reset daily stats if needed
-      if (user.resetDailyStats) {
-        user.resetDailyStats();
-      }
-      
-      await user.save();
-      console.log('✅ User updated:', email);
+      console.log('✅ New user auto-created:', defaultEmail);
     }
+    
+    return user;
+  } catch (error) {
+    console.error('❌ Error ensuring user exists:', error);
+    throw error;
+  }
+};
+
+// Sync user from Firebase
+router.post('/sync', async (req, res) => {
+  try {
+    const { firebaseUid, email, displayName, photoURL } = req.body;
+    
+    console.log('🔄 Syncing user:', email || firebaseUid);
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    // 🔧 NAPRAWIONE: Używamy helper function
+    let user = await ensureUserExists(firebaseUid, email);
+    
+    // Update user data if provided
+    if (email && user.email !== email) {
+      user.email = email;
+    }
+    if (displayName) user.displayName = displayName;
+    if (photoURL) user.photoURL = photoURL;
+    
+    user.lastActive = new Date();
+    
+    // Ensure arrays exist
+    if (!user.scanHistory) user.scanHistory = [];
+    if (!user.recipeHistory) user.recipeHistory = [];
+    if (!user.myBarHistory) user.myBarHistory = [];
+    if (!user.favorites) user.favorites = [];
+    
+    // Reset daily stats if needed
+    if (user.resetDailyStats) {
+      user.resetDailyStats();
+    }
+    
+    await user.save();
+    console.log('✅ User synced successfully:', user.email);
     
     res.json({ 
       success: true, 
@@ -106,14 +122,8 @@ router.post('/sync', async (req, res) => {
 // Get user profile
 router.get('/profile/:firebaseUid', async (req, res) => {
   try {
-    const user = await User.findOne({ firebaseUid: req.params.firebaseUid });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
+    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    const user = await ensureUserExists(req.params.firebaseUid);
     
     res.json({ 
       success: true, 
@@ -145,14 +155,8 @@ router.get('/profile/:firebaseUid', async (req, res) => {
 // Get user stats
 router.get('/stats/:firebaseUid', async (req, res) => {
   try {
-    const user = await User.findOne({ firebaseUid: req.params.firebaseUid });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
+    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    const user = await ensureUserExists(req.params.firebaseUid);
     
     // Reset daily stats if needed
     if (user.resetDailyStats) {
@@ -162,8 +166,18 @@ router.get('/stats/:firebaseUid', async (req, res) => {
       }
     }
     
+    // 🆕 DODANE: Zwracamy stats w formacie zgodnym z frontendem
+    const stats = {
+      totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+      totalRecipes: user.stats.totalRecipes || 0,
+      totalScans: user.stats.totalScans || 0
+    };
+    
+    console.log('📊 Returning stats:', stats);
+    
     res.json({ 
       success: true, 
+      ...stats, // Bezpośrednio w response (jak oczekuje frontend)
       stats: {
         ...user.stats,
         historyCount: {
@@ -183,7 +197,7 @@ router.get('/stats/:firebaseUid', async (req, res) => {
   }
 });
 
-// Increment usage stats - POPRAWIONE DLA WSZYSTKICH WARIANTÓW
+// Increment usage stats - POPRAWIONE Z AUTO-TWORZENIEM UŻYTKOWNIKA
 router.post('/stats/increment/:firebaseUid', async (req, res) => {
   try {
     const { firebaseUid } = req.params;
@@ -191,13 +205,8 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
     
     console.log(`📊 Incrementing ${type} stats for user:`, firebaseUid);
     
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
+    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    const user = await ensureUserExists(firebaseUid);
     
     // Zwiększ odpowiednie statystyki - OBSŁUGA WSZYSTKICH WARIANTÓW
     switch(type) {
@@ -226,17 +235,60 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
         });
     }
     
+    user.lastActive = new Date();
     await user.save();
     
     console.log('✅ Stats updated successfully');
     console.log('Current stats:', user.stats);
     
+    // 🆕 DODANE: Zwracamy w formacie zgodnym z frontendem
+    const responseStats = {
+      totalMyBar: user.stats.totalHomeBarAnalyses || 0,
+      totalRecipes: user.stats.totalRecipes || 0,
+      totalScans: user.stats.totalScans || 0
+    };
+    
     res.json({ 
       success: true, 
-      stats: user.stats
+      ...responseStats, // Bezpośrednio w response
+      stats: user.stats // I w nested stats
     });
   } catch (error) {
     console.error('❌ Update stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// 🆕 NOWY ENDPOINT: Auto-sync user from frontend
+router.post('/auto-sync', async (req, res) => {
+  try {
+    const { firebaseUid, email } = req.body;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    console.log('🔄 Auto-syncing user:', firebaseUid);
+    
+    const user = await ensureUserExists(firebaseUid, email);
+    
+    res.json({ 
+      success: true,
+      message: 'User auto-synced successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        firebaseUid: user.firebaseUid
+      }
+    });
+  } catch (error) {
+    console.error('❌ Auto-sync error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -249,6 +301,9 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
   try {
     const { type, endDate, stripeCustomerId, stripeSubscriptionId } = req.body;
     
+    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    const user = await ensureUserExists(req.params.firebaseUid);
+    
     const updateData = {
       'subscription.type': type,
       'subscription.startDate': new Date(),
@@ -259,27 +314,20 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
     if (stripeCustomerId) updateData['subscription.stripeCustomerId'] = stripeCustomerId;
     if (stripeSubscriptionId) updateData['subscription.stripeSubscriptionId'] = stripeSubscriptionId;
     
-    const user = await User.findOneAndUpdate(
+    const updatedUser = await User.findOneAndUpdate(
       { firebaseUid: req.params.firebaseUid },
       { $set: updateData },
       { new: true }
     );
     
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
-    
-    console.log(`✅ Subscription updated for ${user.email}: ${type}`);
+    console.log(`✅ Subscription updated for ${updatedUser.email}: ${type}`);
     
     res.json({ 
       success: true, 
       user: {
-        id: user._id,
-        email: user.email,
-        subscription: user.subscription
+        id: updatedUser._id,
+        email: updatedUser.email,
+        subscription: updatedUser.subscription
       }
     });
   } catch (error) {
@@ -296,23 +344,20 @@ router.patch('/settings/:firebaseUid', async (req, res) => {
   try {
     const { language, notifications, theme } = req.body;
     
+    // 🔧 NAPRAWIONE: Zapewniamy że user istnieje
+    await ensureUserExists(req.params.firebaseUid);
+    
     const updateData = {};
     if (language) updateData['settings.language'] = language;
     if (notifications !== undefined) updateData['settings.notifications'] = notifications;
     if (theme) updateData['settings.theme'] = theme;
+    updateData.lastActive = new Date();
     
     const user = await User.findOneAndUpdate(
       { firebaseUid: req.params.firebaseUid },
       { $set: updateData },
       { new: true }
     );
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
     
     res.json({ 
       success: true, 

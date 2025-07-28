@@ -1,7 +1,56 @@
-// master-api/api/favorites.js
+// master-api/api/favorites.js - 🔧 NAPRAWIONY Z AUTO-TWORZENIEM UŻYTKOWNIKA
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+
+// 🆕 Helper function to ensure user exists (skopiowana z user.js)
+const ensureUserExists = async (firebaseUid, email = null) => {
+  try {
+    let user = await User.findOne({ firebaseUid });
+    
+    if (!user) {
+      console.log('👤 User not found in favorites, creating new user for:', firebaseUid);
+      
+      const defaultEmail = email || `${firebaseUid}@temp.com`;
+      
+      user = await User.create({
+        firebaseUid,
+        email: defaultEmail,
+        displayName: 'User',
+        subscription: {
+          type: 'trial',
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        },
+        stats: {
+          totalScans: 0,
+          totalRecipes: 0,
+          totalHomeBarAnalyses: 0,
+          dailyScans: 0,
+          dailyRecipes: 0,
+          dailyHomeBar: 0,
+          lastResetDate: new Date()
+        },
+        scanHistory: [],
+        recipeHistory: [],
+        myBarHistory: [],
+        favorites: [],
+        settings: {
+          language: 'pl',
+          notifications: true,
+          theme: 'dark'
+        }
+      });
+      
+      console.log('✅ New user auto-created in favorites:', defaultEmail);
+    }
+    
+    return user;
+  } catch (error) {
+    console.error('❌ Error ensuring user exists in favorites:', error);
+    throw error;
+  }
+};
 
 // Dodaj do ulubionych
 router.post('/add', async (req, res) => {
@@ -18,21 +67,14 @@ router.post('/add', async (req, res) => {
       });
     }
     
-    // Znajdź użytkownika
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
+    // 🔧 NAPRAWIONE: Używamy helper function
+    const user = await ensureUserExists(firebaseUid);
     
     // Upewnij się, że favorites istnieje i jest tablicą
     if (!user.favorites) {
       user.favorites = [];
     }
     
-    // Upewnij się, że favorites jest tablicą
     if (!Array.isArray(user.favorites)) {
       console.warn('Favorites was not an array, converting...');
       user.favorites = [];
@@ -83,13 +125,8 @@ router.delete('/remove/:firebaseUid/:recipeId', async (req, res) => {
     console.log('💔 Removing from favorites for user:', firebaseUid);
     console.log('📖 Recipe ID:', recipeId);
     
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
+    // 🔧 NAPRAWIONE: Używamy helper function
+    const user = await ensureUserExists(firebaseUid);
     
     // Upewnij się, że favorites istnieje i jest tablicą
     if (!user.favorites) {
@@ -140,13 +177,8 @@ router.get('/:firebaseUid', async (req, res) => {
     
     console.log('📚 Getting favorites for user:', firebaseUid);
     
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
+    // 🔧 NAPRAWIONE: Używamy helper function
+    const user = await ensureUserExists(firebaseUid);
     
     // Upewnij się, że favorites istnieje i jest tablicą
     if (!user.favorites) {
@@ -204,13 +236,8 @@ router.get('/check/:firebaseUid/:recipeId', async (req, res) => {
     
     console.log('🔍 Checking favorite for user:', firebaseUid, 'recipe:', recipeId);
     
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.json({
-        success: true,
-        isFavorite: false
-      });
-    }
+    // 🔧 NAPRAWIONE: Używamy helper function
+    const user = await ensureUserExists(firebaseUid);
     
     // Upewnij się, że favorites istnieje i jest tablicą
     if (!user.favorites || !Array.isArray(user.favorites)) {
@@ -248,13 +275,8 @@ router.post('/migrate', async (req, res) => {
     console.log('🔄 Migrating favorites for user:', firebaseUid);
     console.log('📦 Favorites to migrate:', favorites?.length || 0);
     
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
+    // 🔧 NAPRAWIONE: Używamy helper function
+    const user = await ensureUserExists(firebaseUid);
     
     // Walidacja danych wejściowych
     if (!favorites || !Array.isArray(favorites)) {

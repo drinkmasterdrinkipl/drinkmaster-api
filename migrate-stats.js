@@ -1,52 +1,35 @@
-// migrate-stats.js - uruchom w folderze master-api
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-// Połącz z MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/drinkmaster');
+mongoose.connect(process.env.MONGODB_URI);
 
 const User = require('./models/User');
 
-async function migrateStats() {
+async function fixStats() {
   try {
-    console.log('🔄 Starting stats migration...');
+    console.log('🔄 Fixing stats for chwascinski@icloud.com...');
     
-    // Znajdź wszystkich użytkowników
-    const users = await User.find({});
+    const user = await User.findOne({ email: "chwascinski@icloud.com" });
     
-    for (const user of users) {
-      let updated = false;
-      
-      // Sprawdź czy ma stare pole totalMyBar
-      if (user.stats && typeof user.stats.totalMyBar !== 'undefined') {
-        // Przenieś wartość do nowego pola
-        user.stats.totalHomeBarAnalyses = user.stats.totalMyBar || 0;
-        
-        // Usuń stare pole
-        user.stats.totalMyBar = undefined;
-        
-        updated = true;
-        console.log(`✅ Migrated stats for ${user.email}: totalMyBar -> totalHomeBarAnalyses (${user.stats.totalHomeBarAnalyses})`);
-      }
-      
-      // Upewnij się, że wszystkie pola istnieją
-      if (!user.stats.totalHomeBarAnalyses) {
-        user.stats.totalHomeBarAnalyses = 0;
-        updated = true;
-      }
-      
-      if (updated) {
-        await user.save();
-        console.log(`✅ Updated user: ${user.email}`);
-      }
+    if (!user) {
+      console.log('❌ User not found!');
+      process.exit(1);
     }
     
-    console.log('✅ Migration completed!');
+    console.log('Current stats:', JSON.stringify(user.stats, null, 2));
+    
+    // Popraw statystyki
+    user.stats.totalHomeBarAnalyses = user.stats.totalHomeBarAnalyses || 0;
+    user.stats.totalRecipes = 12; // Przywróć właściwą wartość
+    
+    await user.save();
+    
+    console.log('✅ Fixed! New stats:', JSON.stringify(user.stats, null, 2));
     process.exit(0);
   } catch (error) {
-    console.error('❌ Migration error:', error);
+    console.error('❌ Error:', error);
     process.exit(1);
   }
 }
 
-migrateStats();
+fixStats();
