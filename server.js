@@ -1,4 +1,4 @@
-// master-api/server.js - KOMPLETNA NAPRAWA Z TIMEOUT I ROUTING
+// master-api/server.js - KOMPLETNY PLIK Z SUBSCRIPTION ROUTES
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -143,6 +143,13 @@ app.get('/', (req, res) => {
         stats: '/api/user/stats/:firebaseUid',
         statsIncrement: '/api/user/stats/increment/:firebaseUid'
       },
+      subscription: {
+        status: '/api/subscription/:firebaseUid',
+        upgrade: '/api/subscription/upgrade',
+        sync: '/api/subscription/sync',
+        cancel: '/api/subscription/cancel',
+        checkReset: '/api/subscription/check-reset'
+      },
       history: '/api/history',
       favorites: '/api/favorites'
     }
@@ -155,6 +162,7 @@ app.use('/api/recipe-generator', require('./api/recipe-generator'));
 app.use('/api/mybar', require('./api/mybar'));
 app.use('/api/history', require('./api/history'));
 app.use('/api/favorites', require('./api/favorites'));
+app.use('/api/subscription', require('./api/subscription')); // NOWA LINIA - SUBSCRIPTION ROUTES
 app.use('/api/user', require('./api/user')); // This includes /api/user/stats/increment/:uid
 
 // Legacy stats endpoint for backward compatibility
@@ -348,9 +356,17 @@ const server = app.listen(PORT, () => {
    • Recipe Generator: /api/recipe-generator
    • My Bar: /api/mybar
    • User Management: /api/user/*
+   • Subscription: /api/subscription/*
    • Stats Increment: /api/user/stats/increment/:uid
    • History: /api/history
    • Favorites: /api/favorites
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 Subscription Endpoints:
+   • GET  /api/subscription/:uid - Get status
+   • POST /api/subscription/upgrade - Upgrade
+   • POST /api/subscription/sync - Sync state
+   • POST /api/subscription/cancel - Cancel
+   • POST /api/subscription/check-reset - Check reset
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);
 });
