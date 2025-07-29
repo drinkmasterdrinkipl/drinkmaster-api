@@ -16,27 +16,35 @@ const userSchema = new mongoose.Schema({
   displayName: String,
   photoURL: String,
   
-  // Subscription data - POPRAWIONE
+  // NOWE: Providers dla social login
+  providers: [{
+    type: String,
+    enum: ['password', 'google.com', 'apple.com'],
+    default: ['password']
+  }],
+  
+  // Subscription data - BEZ TRIAL!
   subscription: {
     type: {
       type: String,
-      enum: ['trial', 'free', 'monthly', 'yearly'],
-      default: 'trial'
+      enum: ['free', 'monthly', 'yearly'], // USUNIĘTE 'trial'
+      default: 'free'
     },
-    startDate: Date,
+    startDate: { type: Date, default: Date.now },
     endDate: Date,
     stripeCustomerId: String,
-    stripeSubscriptionId: String
+    stripeSubscriptionId: String,
+    revenueCatCustomerId: String
   },
   
-  // Usage stats - POPRAWIONE I UJEDNOLICONE
+  // Usage stats - UJEDNOLICONE
   stats: {
-    // Total stats
+    // Total stats (dla FREE - max 2 każdej funkcji)
     totalScans: { type: Number, default: 0 },
     totalRecipes: { type: Number, default: 0 },
     totalHomeBarAnalyses: { type: Number, default: 0 },
     
-    // Daily stats
+    // Daily stats (dla PREMIUM - max 50 dziennie)
     dailyScans: { type: Number, default: 0 },
     dailyRecipes: { type: Number, default: 0 },
     dailyHomeBar: { type: Number, default: 0 },
@@ -95,7 +103,7 @@ const userSchema = new mongoose.Schema({
     analysis: mongoose.Schema.Types.Mixed
   }],
   
-  // Favorites - struktura używana w favorites.js
+  // Favorites
   favorites: [{
     recipe: {
       id: String,
@@ -138,6 +146,8 @@ const userSchema = new mongoose.Schema({
   
   // Other
   lastActive: { type: Date, default: Date.now },
+  isNewUser: { type: Boolean, default: true },
+  emailVerified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, {
@@ -166,6 +176,49 @@ userSchema.methods.resetDailyStats = function() {
   }
   
   return false;
+};
+
+// Method to check if user can use feature
+userSchema.methods.canUseFeature = function(feature) {
+  const statMap = {
+    'scanner': { total: 'totalScans', daily: 'dailyScans' },
+    'recipe': { total: 'totalRecipes', daily: 'dailyRecipes' },
+    'mybar': { total: 'totalHomeBarAnalyses', daily: 'dailyHomeBar' }
+  };
+  
+  const stat = statMap[feature];
+  if (!stat) return false;
+  
+  // Check daily reset first
+  this.resetDailyStats();
+  
+  if (this.subscription.type === 'free') {
+    // FREE users: max 2 lifetime uses per feature
+    return this.stats[stat.total] < 2;
+  } else {
+    // PREMIUM users: max 50 daily uses per feature
+    return this.stats[stat.daily] < 50;
+  }
+};
+
+// Method to increment usage
+userSchema.methods.incrementUsage = function(feature) {
+  const statMap = {
+    'scanner': { total: 'totalScans', daily: 'dailyScans' },
+    'recipe': { total: 'totalRecipes', daily: 'dailyRecipes' },
+    'mybar': { total: 'totalHomeBarAnalyses', daily: 'dailyHomeBar' }
+  };
+  
+  const stat = statMap[feature];
+  if (!stat) return;
+  
+  // Always increment total
+  this.stats[stat.total]++;
+  
+  // Increment daily for all users (important for premium)
+  this.stats[stat.daily]++;
+  
+  this.lastActive = new Date();
 };
 
 // Indexes for performance

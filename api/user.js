@@ -1,7 +1,8 @@
-// master-api/api/user.js - NAPRAWIONY SYNC
+// master-api/api/user.js - POPRAWIONY DLA SOCIAL LOGIN I FREE Z AUTORYZACJĄ
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const { verifyToken, optionalAuth } = require('../middleware/auth');
 
 // Debouncing map to prevent duplicate increments
 const recentIncrements = new Map();
@@ -48,10 +49,10 @@ const ensureUserExists = async (firebaseUid, email = null) => {
         firebaseUid,
         email: defaultEmail,
         displayName: 'User',
+        providers: ['password'], // Default provider
         subscription: {
-          type: 'trial',
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+          type: 'free', // ZMIANA: Nowi użytkownicy zaczynają jako FREE, nie TRIAL
+          startDate: new Date()
         },
         stats: {
           totalScans: 0,
@@ -71,6 +72,7 @@ const ensureUserExists = async (firebaseUid, email = null) => {
           notifications: true,
           theme: 'dark'
         },
+        isNewUser: true,
         createdAt: new Date(),
         lastActive: new Date()
       });
@@ -85,12 +87,15 @@ const ensureUserExists = async (firebaseUid, email = null) => {
   }
 };
 
-// Sync user from Firebase - FIXED VERSION
-router.post('/sync', async (req, res) => {
+// Sync user from Firebase - UPDATED FOR SOCIAL LOGIN WITH AUTH
+router.post('/sync', optionalAuth, async (req, res) => {
   try {
-    const { firebaseUid, email, displayName, photoURL, emailVerified } = req.body;
+    // Prefer user from token, fallback to request body for backward compatibility
+    const firebaseUid = req.user?.uid || req.body.firebaseUid;
+    const { email, displayName, photoURL, emailVerified, providers } = req.body;
     
     console.log('🔄 Syncing user:', email || firebaseUid);
+    console.log('Providers:', providers);
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -134,16 +139,20 @@ router.post('/sync', async (req, res) => {
     // If still no user found, create new one
     if (!user) {
       console.log('👤 Creating new user');
+      
+      // Determine providers from request or default
+      const userProviders = providers && providers.length > 0 ? providers : ['password'];
+      
       user = new User({
         firebaseUid,
         email: email || `${firebaseUid}@temp.com`,
         displayName: displayName || 'User',
         photoURL,
         emailVerified,
+        providers: userProviders, // NOWE: Zapisz providers
         subscription: {
-          type: 'trial',
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+          type: 'free', // WAŻNE: Zaczynamy jako FREE
+          startDate: new Date()
         },
         stats: {
           totalScans: 0,
@@ -163,6 +172,7 @@ router.post('/sync', async (req, res) => {
           notifications: true,
           theme: 'dark'
         },
+        isNewUser: true,
         lastActive: new Date()
       });
     } else {
@@ -192,6 +202,19 @@ router.post('/sync', async (req, res) => {
       if (emailVerified !== undefined && emailVerified !== user.emailVerified) {
         user.emailVerified = emailVerified;
       }
+      
+      // NOWE: Update providers if provided
+      if (providers && Array.isArray(providers) && providers.length > 0) {
+        // Merge providers (don't replace, add new ones)
+        const uniqueProviders = [...new Set([...(user.providers || []), ...providers])];
+        user.providers = uniqueProviders;
+        console.log('Updated providers:', uniqueProviders);
+      }
+      
+      // Mark as not new user anymore
+      if (user.isNewUser) {
+        user.isNewUser = false;
+      }
     }
     
     user.lastActive = new Date();
@@ -218,6 +241,7 @@ router.post('/sync', async (req, res) => {
         email: user.email,
         displayName: user.displayName,
         emailVerified: user.emailVerified,
+        providers: user.providers, // NOWE: Return providers
         subscription: user.subscription,
         stats: user.stats,
         hasHistory: {
@@ -226,6 +250,7 @@ router.post('/sync', async (req, res) => {
           myBar: user.myBarHistory.length > 0,
           favorites: user.favorites.length > 0
         },
+        isNewUser: user.isNewUser,
         createdAt: user.createdAt,
         lastActive: user.lastActive
       }
@@ -249,6 +274,13 @@ router.post('/sync', async (req, res) => {
             // Update Firebase UID
             existingUser.firebaseUid = req.body.firebaseUid;
             existingUser.lastActive = new Date();
+            
+            // Update providers if provided
+            if (req.body.providers && Array.isArray(req.body.providers)) {
+              const uniqueProviders = [...new Set([...(existingUser.providers || []), ...req.body.providers])];
+              existingUser.providers = uniqueProviders;
+            }
+            
             await existingUser.save();
             
             return res.json({ 
@@ -258,6 +290,7 @@ router.post('/sync', async (req, res) => {
                 firebaseUid: existingUser.firebaseUid,
                 email: existingUser.email,
                 displayName: existingUser.displayName,
+                providers: existingUser.providers,
                 subscription: existingUser.subscription,
                 stats: existingUser.stats
               }
@@ -282,9 +315,9 @@ router.post('/sync', async (req, res) => {
 });
 
 // Get user profile
-router.get('/profile/:firebaseUid', async (req, res) => {
+router.get('/profile/:firebaseUid', optionalAuth, async (req, res) => {
   try {
-    const { firebaseUid } = req.params;
+    const firebaseUid = req.user?.uid || req.params.firebaseUid;
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -304,9 +337,11 @@ router.get('/profile/:firebaseUid', async (req, res) => {
         displayName: user.displayName,
         photoURL: user.photoURL,
         emailVerified: user.emailVerified,
+        providers: user.providers || ['password'], // NOWE: Include providers
         subscription: user.subscription,
         stats: user.stats,
         settings: user.settings,
+        isNewUser: user.isNewUser,
         createdAt: user.createdAt,
         lastActive: user.lastActive,
         historyCount: {
@@ -327,9 +362,9 @@ router.get('/profile/:firebaseUid', async (req, res) => {
 });
 
 // Get user stats
-router.get('/stats/:firebaseUid', async (req, res) => {
+router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
   try {
-    const { firebaseUid } = req.params;
+    const firebaseUid = req.user?.uid || req.params.firebaseUid;
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -361,7 +396,8 @@ router.get('/stats/:firebaseUid', async (req, res) => {
           myBar: user.myBarHistory?.length || 0,
           favorites: user.favorites?.length || 0
         }
-      }
+      },
+      subscription: user.subscription // NOWE: Include subscription info
     };
     
     console.log('📊 Returning stats for user:', user.email);
@@ -380,9 +416,9 @@ router.get('/stats/:firebaseUid', async (req, res) => {
 });
 
 // Increment usage stats with debouncing
-router.post('/stats/increment/:firebaseUid', async (req, res) => {
+router.post('/stats/increment/:firebaseUid', optionalAuth, async (req, res) => {
   try {
-    const { firebaseUid } = req.params;
+    const firebaseUid = req.user?.uid || req.params.firebaseUid;
     const { type } = req.body;
     
     if (!firebaseUid) {
@@ -428,6 +464,7 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
         totalRecipes: user.stats.totalRecipes || 0,
         totalScans: user.stats.totalScans || 0,
         stats: user.stats,
+        subscription: user.subscription,
         debounced: true
       };
       
@@ -471,7 +508,8 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
     console.log('Current stats:', {
       totalScans: user.stats.totalScans,
       totalRecipes: user.stats.totalRecipes,
-      totalHomeBar: user.stats.totalHomeBarAnalyses
+      totalHomeBar: user.stats.totalHomeBarAnalyses,
+      subscription: user.subscription.type
     });
     
     // Return stats in compatible format
@@ -479,7 +517,8 @@ router.post('/stats/increment/:firebaseUid', async (req, res) => {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
       totalScans: user.stats.totalScans || 0,
-      stats: user.stats
+      stats: user.stats,
+      subscription: user.subscription // NOWE: Include subscription
     };
     
     res.json({ 
@@ -532,7 +571,8 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
       totalScans: user.stats.totalScans || 0,
-      stats: user.stats
+      stats: user.stats,
+      subscription: user.subscription
     };
     
     res.json({ 
@@ -549,11 +589,11 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
   }
 });
 
-// Update subscription
-router.post('/subscription/:firebaseUid', async (req, res) => {
+// Update subscription - REQUIRES AUTH
+router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
   try {
-    const { firebaseUid } = req.params;
-    const { type, endDate, stripeCustomerId, stripeSubscriptionId } = req.body;
+    const firebaseUid = req.user.uid; // Always use token user
+    const { type, endDate, stripeCustomerId, stripeSubscriptionId, revenueCatCustomerId } = req.body;
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -562,10 +602,11 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
       });
     }
     
-    if (!type || !['trial', 'free', 'monthly', 'yearly'].includes(type)) {
+    // ZMIANA: Tylko free, monthly, yearly (bez trial)
+    if (!type || !['free', 'monthly', 'yearly'].includes(type)) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Valid subscription type is required (trial, free, monthly, yearly)' 
+        error: 'Valid subscription type is required (free, monthly, yearly)' 
       });
     }
     
@@ -587,6 +628,10 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
       user.subscription.stripeSubscriptionId = stripeSubscriptionId;
     }
     
+    if (revenueCatCustomerId) {
+      user.subscription.revenueCatCustomerId = revenueCatCustomerId;
+    }
+    
     user.lastActive = new Date();
     await user.save();
     
@@ -597,7 +642,8 @@ router.post('/subscription/:firebaseUid', async (req, res) => {
       user: {
         id: user._id.toString(),
         email: user.email,
-        subscription: user.subscription
+        subscription: user.subscription,
+        stats: user.stats
       }
     });
   } catch (error) {
