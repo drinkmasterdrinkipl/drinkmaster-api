@@ -1,4 +1,4 @@
-// master-api/api/user.js - POPRAWIONY DLA SOCIAL LOGIN I FREE Z AUTORYZACJĄ
+// master-api/api/user.js - POPRAWKA DLA SUBSCRIPTION
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
@@ -49,9 +49,9 @@ const ensureUserExists = async (firebaseUid, email = null) => {
         firebaseUid,
         email: defaultEmail,
         displayName: 'User',
-        providers: ['password'], // Default provider
+        providers: ['password'],
         subscription: {
-          type: 'free', // ZMIANA: Nowi użytkownicy zaczynają jako FREE, nie TRIAL
+          type: 'free',
           startDate: new Date()
         },
         stats: {
@@ -232,9 +232,9 @@ router.post('/sync', optionalAuth, async (req, res) => {
         displayName: displayName || 'User',
         photoURL,
         emailVerified,
-        providers: userProviders, // NOWE: Zapisz providers
+        providers: userProviders,
         subscription: {
-          type: 'free', // WAŻNE: Zaczynamy jako FREE
+          type: 'free',
           startDate: new Date()
         },
         stats: {
@@ -286,7 +286,7 @@ router.post('/sync', optionalAuth, async (req, res) => {
         user.emailVerified = emailVerified;
       }
       
-      // NOWE: Update providers if provided
+      // Update providers if provided
       if (providers && Array.isArray(providers) && providers.length > 0) {
         // Merge providers (don't replace, add new ones)
         const uniqueProviders = [...new Set([...(user.providers || []), ...providers])];
@@ -324,7 +324,7 @@ router.post('/sync', optionalAuth, async (req, res) => {
         email: user.email,
         displayName: user.displayName,
         emailVerified: user.emailVerified,
-        providers: user.providers, // NOWE: Return providers
+        providers: user.providers,
         subscription: user.subscription,
         stats: user.stats,
         hasHistory: {
@@ -420,7 +420,7 @@ router.get('/profile/:firebaseUid', optionalAuth, async (req, res) => {
         displayName: user.displayName,
         photoURL: user.photoURL,
         emailVerified: user.emailVerified,
-        providers: user.providers || ['password'], // NOWE: Include providers
+        providers: user.providers || ['password'],
         subscription: user.subscription,
         stats: user.stats,
         settings: user.settings,
@@ -444,7 +444,7 @@ router.get('/profile/:firebaseUid', optionalAuth, async (req, res) => {
   }
 });
 
-// Get user stats - POPRAWIONE
+// Get user stats - POPRAWIONE DLA SUBSCRIPTION
 router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
   try {
     const firebaseUid = req.user?.uid || req.params.firebaseUid;
@@ -466,7 +466,7 @@ router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
       }
     }
     
-    // POPRAWKA: Frontend oczekuje subscription wewnątrz stats
+    // KLUCZOWA ZMIANA: Frontend oczekuje subscription wewnątrz stats
     const response = {
       success: true,
       // Dla kompatybilności wstecznej - stare pola na głównym poziomie
@@ -476,7 +476,7 @@ router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
       // Nowa struktura z subscription
       stats: {
         ...user.stats,
-        // KLUCZOWE: Dodaj subscription do stats
+        // WAŻNE: Dodaj subscription do stats
         subscription: {
           type: user.subscription?.type || 'free',
           startDate: user.subscription?.startDate,
@@ -635,7 +635,7 @@ router.post('/stats/increment/:firebaseUid', optionalAuth, async (req, res) => {
           endDate: user.subscription?.endDate
         }
       },
-      subscription: user.subscription // NOWE: Include subscription
+      subscription: user.subscription
     };
     
     res.json({ 
@@ -713,7 +713,7 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
   }
 });
 
-// Update subscription - POPRAWIONE
+// Update subscription - POPRAWIONE Z LOGGINGIEM
 router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
   try {
     const firebaseUid = req.user.uid; // Always use token user
@@ -726,7 +726,7 @@ router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
       });
     }
     
-    // ZMIANA: Tylko free, monthly, yearly (bez trial)
+    // Only free, monthly, yearly (no trial)
     if (!type || !['free', 'monthly', 'yearly'].includes(type)) {
       return res.status(400).json({ 
         success: false, 
@@ -739,6 +739,8 @@ router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
     // Store previous type to check if we're upgrading
     const previousType = user.subscription?.type || 'free';
     const isUpgradingToPremium = previousType === 'free' && (type === 'monthly' || type === 'yearly');
+    
+    console.log(`🔄 Updating subscription for ${user.email}: ${previousType} → ${type}`);
     
     // Update subscription
     user.subscription.type = type;
@@ -779,6 +781,11 @@ router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
     await user.save();
     
     console.log(`✅ Subscription updated for ${user.email}: ${previousType} → ${type}`);
+    console.log('📊 Current subscription:', {
+      type: user.subscription.type,
+      startDate: user.subscription.startDate,
+      endDate: user.subscription.endDate
+    });
     
     res.json({ 
       success: true, 
