@@ -764,7 +764,7 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   }
 };
 
-// Helper function to update user stats
+// Helper function to update user stats - POPRAWIONE
 const updateUserStats = async (firebaseUid) => {
   try {
     if (!firebaseUid) {
@@ -775,10 +775,12 @@ const updateUserStats = async (firebaseUid) => {
     await User.findOneAndUpdate(
       { firebaseUid },
       { 
-        $inc: { 'stats.totalRecipes': 1 },
+        $inc: { 'stats.totalHomeBarAnalyses': 1 },  // ✅ POPRAWIONE!
         lastActive: new Date()
       }
     );
+    
+    console.log('✅ Updated MyBar stats for user:', firebaseUid);
   } catch (error) {
     console.error('Error updating user stats:', error);
   }
