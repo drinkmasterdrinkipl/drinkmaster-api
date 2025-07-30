@@ -87,6 +87,89 @@ const ensureUserExists = async (firebaseUid, email = null) => {
   }
 };
 
+// Create new user - endpoint for explicit user creation
+router.post('/create', optionalAuth, async (req, res) => {
+  try {
+    const firebaseUid = req.user?.uid || req.body.firebaseUid;
+    const { email, displayName } = req.body;
+    
+    if (!firebaseUid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Firebase UID is required' 
+      });
+    }
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ firebaseUid });
+    if (existingUser) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'User already exists',
+        user: {
+          id: existingUser._id.toString(),
+          firebaseUid: existingUser.firebaseUid,
+          email: existingUser.email,
+          subscription: existingUser.subscription
+        }
+      });
+    }
+    
+    // Create new user
+    const user = await User.create({
+      firebaseUid,
+      email: email || `${firebaseUid}@temp.com`,
+      displayName: displayName || 'User',
+      providers: ['password'],
+      subscription: {
+        type: 'free',
+        startDate: new Date()
+      },
+      stats: {
+        totalScans: 0,
+        totalRecipes: 0,
+        totalHomeBarAnalyses: 0,
+        dailyScans: 0,
+        dailyRecipes: 0,
+        dailyHomeBar: 0,
+        lastResetDate: new Date()
+      },
+      scanHistory: [],
+      recipeHistory: [],
+      myBarHistory: [],
+      favorites: [],
+      settings: {
+        language: 'pl',
+        notifications: true,
+        theme: 'dark'
+      },
+      isNewUser: true,
+      createdAt: new Date(),
+      lastActive: new Date()
+    });
+    
+    console.log('✅ New user created:', user.email);
+    
+    res.status(201).json({ 
+      success: true, 
+      user: {
+        id: user._id.toString(),
+        firebaseUid: user.firebaseUid,
+        email: user.email,
+        displayName: user.displayName,
+        subscription: user.subscription,
+        stats: user.stats
+      }
+    });
+  } catch (error) {
+    console.error('❌ Create user error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to create user'
+    });
+  }
+});
+
 // Sync user from Firebase - UPDATED FOR SOCIAL LOGIN WITH AUTH
 router.post('/sync', optionalAuth, async (req, res) => {
   try {
@@ -361,7 +444,7 @@ router.get('/profile/:firebaseUid', optionalAuth, async (req, res) => {
   }
 });
 
-// Get user stats
+// Get user stats - POPRAWIONE
 router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
   try {
     const firebaseUid = req.user?.uid || req.params.firebaseUid;
@@ -375,21 +458,30 @@ router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
     
     const user = await ensureUserExists(firebaseUid);
     
-    // Reset daily stats if needed
-    if (user.resetDailyStats) {
+    // Reset daily stats if needed (dla premium users)
+    if (user.subscription?.type !== 'free' && user.resetDailyStats) {
       const wasReset = user.resetDailyStats();
       if (wasReset) {
         await user.save();
       }
     }
     
-    // Return stats in both formats for compatibility
-    const stats = {
+    // POPRAWKA: Frontend oczekuje subscription wewnątrz stats
+    const response = {
+      success: true,
+      // Dla kompatybilności wstecznej - stare pola na głównym poziomie
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
       totalScans: user.stats.totalScans || 0,
+      // Nowa struktura z subscription
       stats: {
         ...user.stats,
+        // KLUCZOWE: Dodaj subscription do stats
+        subscription: {
+          type: user.subscription?.type || 'free',
+          startDate: user.subscription?.startDate,
+          endDate: user.subscription?.endDate
+        },
         historyCount: {
           scans: user.scanHistory?.length || 0,
           recipes: user.recipeHistory?.length || 0,
@@ -397,15 +489,26 @@ router.get('/stats/:firebaseUid', optionalAuth, async (req, res) => {
           favorites: user.favorites?.length || 0
         }
       },
-      subscription: user.subscription // NOWE: Include subscription info
+      // Również na głównym poziomie dla bezpieczeństwa
+      subscription: {
+        type: user.subscription?.type || 'free',
+        startDate: user.subscription?.startDate,
+        endDate: user.subscription?.endDate
+      }
     };
     
     console.log('📊 Returning stats for user:', user.email);
-    
-    res.json({ 
-      success: true, 
-      ...stats
+    console.log('📊 Subscription type:', response.subscription.type);
+    console.log('📊 Stats:', {
+      totalScans: response.totalScans,
+      totalRecipes: response.totalRecipes,
+      totalHomeBar: response.totalMyBar,
+      dailyScans: user.stats.dailyScans,
+      dailyRecipes: user.stats.dailyRecipes,
+      dailyHomeBar: user.stats.dailyHomeBar
     });
+    
+    res.json(response);
   } catch (error) {
     console.error('❌ Get stats error:', error);
     res.status(500).json({ 
@@ -463,7 +566,14 @@ router.post('/stats/increment/:firebaseUid', optionalAuth, async (req, res) => {
         totalMyBar: user.stats.totalHomeBarAnalyses || 0,
         totalRecipes: user.stats.totalRecipes || 0,
         totalScans: user.stats.totalScans || 0,
-        stats: user.stats,
+        stats: {
+          ...user.stats,
+          subscription: {
+            type: user.subscription?.type || 'free',
+            startDate: user.subscription?.startDate,
+            endDate: user.subscription?.endDate
+          }
+        },
         subscription: user.subscription,
         debounced: true
       };
@@ -480,8 +590,8 @@ router.post('/stats/increment/:firebaseUid', optionalAuth, async (req, res) => {
     // Get or create user
     const user = await ensureUserExists(firebaseUid);
     
-    // Reset daily stats if needed
-    if (user.resetDailyStats) {
+    // Reset daily stats if needed (dla premium users)
+    if (user.subscription?.type !== 'free' && user.resetDailyStats) {
       user.resetDailyStats();
     }
     
@@ -517,7 +627,14 @@ router.post('/stats/increment/:firebaseUid', optionalAuth, async (req, res) => {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
       totalScans: user.stats.totalScans || 0,
-      stats: user.stats,
+      stats: {
+        ...user.stats,
+        subscription: {
+          type: user.subscription?.type || 'free',
+          startDate: user.subscription?.startDate,
+          endDate: user.subscription?.endDate
+        }
+      },
       subscription: user.subscription // NOWE: Include subscription
     };
     
@@ -571,7 +688,14 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
       totalMyBar: user.stats.totalHomeBarAnalyses || 0,
       totalRecipes: user.stats.totalRecipes || 0,
       totalScans: user.stats.totalScans || 0,
-      stats: user.stats,
+      stats: {
+        ...user.stats,
+        subscription: {
+          type: user.subscription?.type || 'free',
+          startDate: user.subscription?.startDate,
+          endDate: user.subscription?.endDate
+        }
+      },
       subscription: user.subscription
     };
     
@@ -589,11 +713,11 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
   }
 });
 
-// Update subscription - REQUIRES AUTH
+// Update subscription - POPRAWIONE
 router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
   try {
     const firebaseUid = req.user.uid; // Always use token user
-    const { type, endDate, stripeCustomerId, stripeSubscriptionId, revenueCatCustomerId } = req.body;
+    const { type, endDate, stripeCustomerId, stripeSubscriptionId, revenueCatCustomerId, resetStats } = req.body;
     
     if (!firebaseUid) {
       return res.status(400).json({ 
@@ -612,12 +736,22 @@ router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
     
     const user = await ensureUserExists(firebaseUid);
     
+    // Store previous type to check if we're upgrading
+    const previousType = user.subscription?.type || 'free';
+    const isUpgradingToPremium = previousType === 'free' && (type === 'monthly' || type === 'yearly');
+    
     // Update subscription
     user.subscription.type = type;
     user.subscription.startDate = new Date();
     
     if (endDate) {
       user.subscription.endDate = new Date(endDate);
+    } else if (type === 'monthly') {
+      // Auto-set end date for monthly
+      user.subscription.endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    } else if (type === 'yearly') {
+      // Auto-set end date for yearly
+      user.subscription.endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     }
     
     if (stripeCustomerId) {
@@ -632,10 +766,19 @@ router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
       user.subscription.revenueCatCustomerId = revenueCatCustomerId;
     }
     
+    // Reset daily stats if upgrading to premium or if explicitly requested
+    if ((isUpgradingToPremium || resetStats) && type !== 'free') {
+      console.log('🔄 Resetting daily stats for premium user');
+      user.stats.dailyScans = 0;
+      user.stats.dailyRecipes = 0;
+      user.stats.dailyHomeBar = 0;
+      user.stats.lastResetDate = new Date();
+    }
+    
     user.lastActive = new Date();
     await user.save();
     
-    console.log(`✅ Subscription updated for ${user.email}: ${type}`);
+    console.log(`✅ Subscription updated for ${user.email}: ${previousType} → ${type}`);
     
     res.json({ 
       success: true, 
