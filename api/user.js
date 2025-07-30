@@ -713,10 +713,11 @@ router.post('/stats/reset/:firebaseUid', async (req, res) => {
   }
 });
 
-// Update subscription - POPRAWIONE Z LOGGINGIEM
-router.post('/subscription/:firebaseUid', verifyToken, async (req, res) => {
+// Update subscription - POPRAWIONE Z FALLBACK
+router.post('/subscription/:firebaseUid', optionalAuth, async (req, res) => {
   try {
-    const firebaseUid = req.user.uid; // Always use token user
+    // Użyj uid z tokenu lub z parametrów
+    const firebaseUid = req.user?.uid || req.params.firebaseUid;
     const { type, endDate, stripeCustomerId, stripeSubscriptionId, revenueCatCustomerId, resetStats } = req.body;
     
     if (!firebaseUid) {
