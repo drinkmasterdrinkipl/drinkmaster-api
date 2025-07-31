@@ -764,7 +764,7 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   }
 };
 
-// Helper function to update user stats - UŻYWAMY totalMyBar
+// Helper function to update user stats
 const updateUserStats = async (firebaseUid) => {
   try {
     if (!firebaseUid) {
@@ -772,11 +772,11 @@ const updateUserStats = async (firebaseUid) => {
       return;
     }
 
-    // ✅ POPRAWKA: używamy totalMyBar zgodnie z frontendem
+    // Używamy totalHomeBarAnalyses bo to jest pole które frontend oczekuje
     await User.findOneAndUpdate(
       { firebaseUid },
       { 
-        $inc: { 'stats.totalMyBar': 1 },
+        $inc: { 'stats.totalHomeBarAnalyses': 1 },
         lastActive: new Date()
       }
     );
