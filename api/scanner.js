@@ -34,13 +34,42 @@ const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse)
 
     console.log('📝 History entry prepared');
 
+    // Najpierw znajdź użytkownika aby sprawdzić jego subskrypcję
+    const user = await User.findOne({ firebaseUid });
+    const isPremium = user && user.subscription && 
+                     (user.subscription.type === 'monthly' || user.subscription.type === 'yearly');
+
+    // Przygotuj update object
+    const updateObj = {
+      $push: { scanHistory: historyEntry },
+      $inc: { 'stats.totalScans': 1 },
+      lastActive: new Date()
+    };
+
+    // Dla premium użytkowników, zwiększ również dailyScans
+    if (isPremium) {
+      // Sprawdź czy trzeba zresetować daily stats
+      const now = new Date();
+      const lastReset = user.stats?.lastResetDate ? new Date(user.stats.lastResetDate) : null;
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      if (!lastReset || lastReset < today) {
+        console.log('🔄 Resetting daily stats for premium user');
+        updateObj.$set = {
+          'stats.dailyScans': 1,
+          'stats.dailyRecipes': 0,
+          'stats.dailyHomeBar': 0,
+          'stats.lastResetDate': today
+        };
+      } else {
+        updateObj.$inc['stats.dailyScans'] = 1;
+      }
+      console.log('💎 Premium user - updating dailyScans');
+    }
+
     const result = await User.findOneAndUpdate(
       { firebaseUid },
-      { 
-        $push: { scanHistory: historyEntry },
-        $inc: { 'stats.totalScans': 1 },
-        lastActive: new Date()
-      },
+      updateObj,
       { upsert: true, new: true }
     );
 
@@ -51,7 +80,11 @@ const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse)
 
     console.log('✅ Scan saved to history for user:', firebaseUid);
     console.log('📊 User now has', result.scanHistory.length, 'scans in history');
-    console.log('📊 User stats:', result.stats);
+    console.log('📊 User stats:', {
+      totalScans: result.stats.totalScans,
+      dailyScans: result.stats.dailyScans || 0,
+      isPremium: isPremium
+    });
     
     return { success: true, scanCount: result.scanHistory.length };
   } catch (error) {
