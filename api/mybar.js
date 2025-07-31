@@ -764,7 +764,7 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   }
 };
 
-// Helper function to update user stats - POPRAWIONE BEZ INCREMENTOWANIA
+// Helper function to update user stats - ZWIĘKSZA STATYSTYKI TYLKO RAZ
 const updateUserStats = async (firebaseUid) => {
   try {
     if (!firebaseUid) {
@@ -772,18 +772,26 @@ const updateUserStats = async (firebaseUid) => {
       return;
     }
 
-    // TYLKO aktualizuj lastActive, NIE zwiększaj statystyk
-    // Frontend sam zarządza incrementowaniem przez incrementUsage()
-    await User.findOneAndUpdate(
+    // Zwiększ statystyki TYLKO RAZ
+    const result = await User.findOneAndUpdate(
       { firebaseUid },
       { 
+        $inc: { 
+          'stats.totalHomeBarAnalyses': 1,
+          'stats.dailyHomeBar': 1
+        },
         lastActive: new Date()
-      }
+      },
+      { new: true }
     );
     
-    console.log('✅ Updated lastActive for user:', firebaseUid);
+    console.log('✅ Updated MyBar stats for user:', firebaseUid);
+    console.log('📊 New stats:', {
+      totalHomeBarAnalyses: result?.stats?.totalHomeBarAnalyses,
+      dailyHomeBar: result?.stats?.dailyHomeBar
+    });
   } catch (error) {
-    console.error('Error updating user activity:', error);
+    console.error('Error updating user stats:', error);
   }
 };
 
@@ -1010,7 +1018,7 @@ RETURN ONLY VALID JSON!`;
       shoppingList: responseData.shoppingList.length
     });
     
-    // Update user activity (NOT stats - frontend handles that)
+    // Update user stats - zwiększa statystyki TYLKO RAZ
     if (firebaseUid) {
       await updateUserStats(firebaseUid);
     }
