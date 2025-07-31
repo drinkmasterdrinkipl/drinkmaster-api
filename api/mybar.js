@@ -764,7 +764,7 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   }
 };
 
-// Helper function to update user stats
+// Helper function to update user stats - POPRAWIONE BEZ INCREMENTOWANIA
 const updateUserStats = async (firebaseUid) => {
   try {
     if (!firebaseUid) {
@@ -772,18 +772,18 @@ const updateUserStats = async (firebaseUid) => {
       return;
     }
 
-    // Używamy totalHomeBarAnalyses bo to jest pole które frontend oczekuje
+    // TYLKO aktualizuj lastActive, NIE zwiększaj statystyk
+    // Frontend sam zarządza incrementowaniem przez incrementUsage()
     await User.findOneAndUpdate(
       { firebaseUid },
       { 
-        $inc: { 'stats.totalHomeBarAnalyses': 1 },
         lastActive: new Date()
       }
     );
     
-    console.log('✅ Updated MyBar stats for user:', firebaseUid);
+    console.log('✅ Updated lastActive for user:', firebaseUid);
   } catch (error) {
-    console.error('Error updating user stats:', error);
+    console.error('Error updating user activity:', error);
   }
 };
 
@@ -1010,7 +1010,7 @@ RETURN ONLY VALID JSON!`;
       shoppingList: responseData.shoppingList.length
     });
     
-    // Update user stats (optional)
+    // Update user activity (NOT stats - frontend handles that)
     if (firebaseUid) {
       await updateUserStats(firebaseUid);
     }

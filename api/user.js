@@ -29,7 +29,9 @@ const normalizeUsageType = (type) => {
     'homebar': 'homeBar',
     'mybar': 'homeBar',
     'myBar': 'homeBar',
-    'bar': 'homeBar'
+    'bar': 'homeBar',
+    'totalHomeBarAnalyses': 'homeBar',
+    'totalMyBar': 'homeBar'
   };
   
   return typeMap[type] || null;
