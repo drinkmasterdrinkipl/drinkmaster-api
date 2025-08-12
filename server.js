@@ -1,4 +1,4 @@
-// master-api/server.js - Z OBSŁUGĄ REVENUECAT
+// master-api/server.js - POPRAWIONA OBSŁUGA REVENUECAT
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -177,7 +177,11 @@ app.use((req, res, next) => {
   
   // Log request body for debugging (be careful with sensitive data)
   if (config.server.env === 'development' && req.body && Object.keys(req.body).length > 0) {
-    console.log('📋 Request body:', JSON.stringify(req.body).substring(0, 200) + '...');
+    // Don't log sensitive keys
+    const sanitizedBody = { ...req.body };
+    if (sanitizedBody.password) sanitizedBody.password = '[HIDDEN]';
+    if (sanitizedBody.receipt) sanitizedBody.receipt = '[HIDDEN]';
+    console.log('📋 Request body:', JSON.stringify(sanitizedBody).substring(0, 200) + '...');
   }
   
   // Log response when finished
@@ -265,10 +269,6 @@ app.get('/', (req, res) => {
       scanner: '/api/scanner',
       recipeGenerator: '/api/recipe-generator',
       myBar: '/api/mybar',
-      config: {
-        getKey: '/api/config/key',
-        verify: '/api/config/verify'
-      },
       user: {
         sync: '/api/user/sync',
         profile: '/api/user/profile/:firebaseUid',
@@ -304,62 +304,34 @@ app.get('/', (req, res) => {
   });
 });
 
-// NEW: Config endpoint dla aplikacji - bezpieczne pobieranie klucza
-app.get('/api/config/key', async (req, res) => {
-  try {
-    // Możesz dodać dodatkową weryfikację tutaj
-    const { platform, version } = req.query;
-    
-    // Tylko dla iOS na razie
-    if (platform !== 'ios') {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Unsupported platform' 
-      });
-    }
-    
-    // Zwróć klucz RevenueCat z environment variables
-    const key = process.env.REVENUECAT_SECRET_KEY || process.env.REVENUECAT_IOS_KEY;
-    
-    if (!key) {
-      console.error('❌ RevenueCat key not configured in environment');
-      return res.status(500).json({ 
-        success: false, 
-        error: 'RevenueCat not configured' 
-      });
-    }
-    
-    // Log but don't expose full key
-    console.log('🔑 RevenueCat key requested for platform:', platform);
-    
-    res.json({ 
-      success: true,
-      key: key,
-      platform: platform,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('❌ Config key error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to retrieve configuration' 
-    });
-  }
-});
-
-// NEW: RevenueCat webhook endpoint
+// RevenueCat webhook endpoint - handles subscription events
 app.post('/api/revenuecat/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     const event = JSON.parse(req.body.toString());
     
     console.log('🪝 RevenueCat webhook received:', event.type);
+    console.log('📦 Event data:', {
+      type: event.type,
+      app_user_id: event.app_user_id,
+      product_id: event.product_id,
+      environment: event.environment
+    });
+    
+    // Verify webhook authenticity (optional but recommended)
+    const webhookAuth = req.headers['authorization'];
+    const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
+    
+    if (expectedAuth && webhookAuth !== `Bearer ${expectedAuth}`) {
+      console.warn('⚠️ Invalid webhook authorization');
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
     
     // Handle different event types
     switch (event.type) {
       case 'INITIAL_PURCHASE':
       case 'RENEWAL':
         // Update user subscription in database
-        const { app_user_id, product_id } = event;
+        const { app_user_id, product_id, purchased_at_ms, expiration_at_ms } = event;
         console.log(`💳 Subscription event for user ${app_user_id}: ${product_id}`);
         
         // Import User model and update
@@ -368,71 +340,116 @@ app.post('/api/revenuecat/webhook', express.raw({ type: 'application/json' }), a
         
         if (user) {
           // Determine subscription type from product_id
-          const subscriptionType = product_id.includes('annual') ? 'yearly' : 'monthly';
+          let subscriptionType = 'free';
+          if (product_id.includes('annual') || product_id.includes('yearly')) {
+            subscriptionType = 'yearly';
+          } else if (product_id.includes('monthly')) {
+            subscriptionType = 'monthly';
+          } else if (product_id.includes('lifetime')) {
+            subscriptionType = 'lifetime';
+          }
           
           user.subscription.type = subscriptionType;
-          user.subscription.startDate = new Date(event.purchased_at_ms);
-          user.subscription.endDate = new Date(event.expiration_at_ms);
+          user.subscription.startDate = new Date(parseInt(purchased_at_ms));
+          
+          if (expiration_at_ms) {
+            user.subscription.endDate = new Date(parseInt(expiration_at_ms));
+          }
+          
           user.subscription.revenueCatCustomerId = app_user_id;
+          user.subscription.productId = product_id;
+          user.subscription.isActive = true;
           
           await user.save();
           console.log(`✅ User subscription updated: ${user.email} -> ${subscriptionType}`);
+        } else {
+          console.warn(`⚠️ User not found for Firebase UID: ${app_user_id}`);
         }
         break;
         
       case 'CANCELLATION':
+        // User cancelled but subscription still active until end date
+        console.log(`⚠️ Subscription cancelled for user ${event.app_user_id} (active until expiration)`);
+        break;
+        
       case 'EXPIRATION':
-        // Handle subscription cancellation
-        console.log(`❌ Subscription cancelled/expired for user ${event.app_user_id}`);
+        // Subscription expired - downgrade to free
+        console.log(`❌ Subscription expired for user ${event.app_user_id}`);
+        
+        const UserExp = require('./models/User');
+        const expiredUser = await UserExp.findOne({ firebaseUid: event.app_user_id });
+        
+        if (expiredUser) {
+          expiredUser.subscription.type = 'free';
+          expiredUser.subscription.isActive = false;
+          await expiredUser.save();
+          console.log(`✅ User downgraded to free: ${expiredUser.email}`);
+        }
+        break;
+        
+      case 'BILLING_ISSUE':
+        console.warn(`💳 Billing issue for user ${event.app_user_id}`);
         break;
         
       default:
         console.log('📝 Unhandled webhook event type:', event.type);
     }
     
-    res.json({ success: true });
+    // Always return 200 to acknowledge receipt
+    res.json({ success: true, received: true });
   } catch (error) {
     console.error('❌ RevenueCat webhook error:', error);
-    res.status(500).json({ 
+    // Still return 200 to prevent retries
+    res.status(200).json({ 
       success: false, 
-      error: 'Webhook processing failed' 
+      error: 'Webhook processing failed',
+      message: error.message 
     });
   }
 });
 
-// NEW: Verify purchase with RevenueCat
+// Verify purchase with RevenueCat REST API
 app.post('/api/revenuecat/verify', async (req, res) => {
   try {
-    const { userId, receipt } = req.body;
+    const { userId, receipt, productId } = req.body;
     
-    if (!userId || !receipt) {
+    if (!userId) {
       return res.status(400).json({ 
         success: false, 
-        error: 'User ID and receipt are required' 
+        error: 'User ID is required' 
       });
     }
     
-    // Use RevenueCat API to verify
-    const REVENUECAT_KEY = process.env.REVENUECAT_SECRET_KEY;
+    // Get the SECRET key for server-side API calls
+    const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY;
     
-    if (!REVENUECAT_KEY) {
+    if (!REVENUECAT_SECRET_KEY) {
+      console.error('❌ REVENUECAT_SECRET_KEY not configured in environment');
       return res.status(500).json({ 
         success: false, 
-        error: 'RevenueCat not configured' 
+        error: 'RevenueCat not configured on server' 
       });
     }
     
-    const response = await fetch(`https://api.revenuecat.com/v1/receipts`, {
-      method: 'POST',
+    // Verify the key is a SECRET key (for server-side use)
+    if (!REVENUECAT_SECRET_KEY.startsWith('sk_')) {
+      console.error('❌ Invalid RevenueCat key type - must be SECRET key (sk_) for server');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Server configuration error' 
+      });
+    }
+    
+    console.log('🔐 Using RevenueCat SECRET key for server-side verification');
+    
+    // Get subscriber info from RevenueCat
+    const response = await fetch(`https://api.revenuecat.com/v1/subscribers/${userId}`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${REVENUECAT_KEY}`,
+        'Authorization': `Bearer ${REVENUECAT_SECRET_KEY}`,
         'Content-Type': 'application/json',
         'X-Platform': 'ios'
-      },
-      body: JSON.stringify({
-        app_user_id: userId,
-        fetch_token: receipt
-      })
+      }
     });
     
     const data = await response.json();
@@ -441,22 +458,76 @@ app.post('/api/revenuecat/verify', async (req, res) => {
       console.error('❌ RevenueCat verification failed:', data);
       return res.status(400).json({ 
         success: false, 
-        error: 'Purchase verification failed' 
+        error: 'Purchase verification failed',
+        details: data
       });
     }
     
     console.log('✅ Purchase verified for user:', userId);
     
+    // Check active subscriptions
+    const subscriber = data.subscriber;
+    const hasActiveSubscription = Object.keys(subscriber.entitlements || {}).some(
+      key => subscriber.entitlements[key].expires_date === null || 
+             new Date(subscriber.entitlements[key].expires_date) > new Date()
+    );
+    
     res.json({ 
       success: true,
-      subscriber: data.subscriber,
-      entitlements: data.subscriber.entitlements
+      hasActiveSubscription,
+      subscriber: {
+        originalAppUserId: subscriber.original_app_user_id,
+        entitlements: subscriber.entitlements,
+        subscriptions: subscriber.subscriptions
+      }
     });
   } catch (error) {
     console.error('❌ Verify purchase error:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to verify purchase' 
+      error: 'Failed to verify purchase',
+      message: error.message
+    });
+  }
+});
+
+// Get RevenueCat offerings
+app.get('/api/revenuecat/offerings', async (req, res) => {
+  try {
+    const { platform = 'ios', userId } = req.query;
+    
+    const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY;
+    
+    if (!REVENUECAT_SECRET_KEY) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'RevenueCat not configured' 
+      });
+    }
+    
+    // Note: Offerings should be fetched from the client SDK
+    // This endpoint is for reference only
+    res.json({
+      success: true,
+      message: 'Offerings should be fetched from the client SDK',
+      info: {
+        ios: {
+          monthly: 'com.drinkmaster.monthly',
+          yearly: 'com.drinkmaster.yearly',
+          lifetime: 'com.drinkmaster.lifetime'
+        },
+        android: {
+          monthly: 'monthly_subscription',
+          yearly: 'yearly_subscription',
+          lifetime: 'lifetime_purchase'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get offerings error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get offerings' 
     });
   }
 });
@@ -593,7 +664,6 @@ app.use((req, res) => {
     availableEndpoints: [
       '/health',
       '/api/status',
-      '/api/config/key',
       '/api/scanner',
       '/api/recipe-generator',
       '/api/mybar',
@@ -724,12 +794,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🌐 URL: ${config.server.env === 'production' ? config.server.url : `http://localhost:${PORT}`}
 📊 MongoDB: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Connecting...'}
 🔐 Auth: ${process.env.FIREBASE_PROJECT_ID ? 'Firebase Admin Ready' : 'No Auth Configured'}
-💳 RevenueCat: ${process.env.REVENUECAT_SECRET_KEY ? 'Configured' : 'Not Configured'}
+💳 RevenueCat: ${process.env.REVENUECAT_SECRET_KEY ? 'Configured (Server API)' : 'Not Configured'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 Available Endpoints:
    • Health Check: /health
    • API Status: /api/status
-   • Config Key: /api/config/key
    • Scanner: /api/scanner
    • Recipe Generator: /api/recipe-generator
    • My Bar: /api/mybar
@@ -739,16 +808,31 @@ const server = app.listen(PORT, '0.0.0.0', () => {
    • History: /api/history/*
    • Favorites: /api/favorites/*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 RevenueCat Endpoints:
-   • GET  /api/config/key - Get API key
-   • POST /api/revenuecat/webhook - Webhook
-   • POST /api/revenuecat/verify - Verify purchase
+💳 RevenueCat Configuration:
+   • Mobile App: Use PUBLIC keys (appl_/goog_)
+   • Server API: Use SECRET key (sk_)
+   • Webhook: /api/revenuecat/webhook
+   • Verify: /api/revenuecat/verify
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 Security Notes:
+   • PUBLIC keys (appl_) for mobile apps
+   • SECRET keys (sk_) for server only
+   • Never expose SECRET keys in client code
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 Rate Limits:
    • General API: 100 req/15min
    • AI Endpoints: 50 req/15min
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);
+  
+  // Additional security check on startup
+  if (process.env.REVENUECAT_SECRET_KEY && !process.env.REVENUECAT_SECRET_KEY.startsWith('sk_')) {
+    console.error('⚠️ WARNING: REVENUECAT_SECRET_KEY should start with "sk_" for server use');
+  }
+  
+  if (process.env.REVENUECAT_PUBLIC_KEY && process.env.REVENUECAT_PUBLIC_KEY.startsWith('sk_')) {
+    console.error('❌ CRITICAL: SECRET KEY found in PUBLIC_KEY variable! This is a security risk!');
+  }
 });
 
 // Server timeout
