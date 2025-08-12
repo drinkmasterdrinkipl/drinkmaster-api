@@ -1,4 +1,4 @@
-// master-api/server.js - KOMPLETNY PLIK Z SUBSCRIPTION ROUTES I POPRAWKAMI
+// master-api/server.js - Z OBSŁUGĄ REVENUECAT
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -246,7 +246,8 @@ app.get('/api/status', (req, res) => {
       user: 'operational',
       subscription: 'operational',
       favorites: 'operational',
-      history: 'operational'
+      history: 'operational',
+      revenueCat: 'operational'
     }
   });
 });
@@ -264,6 +265,10 @@ app.get('/', (req, res) => {
       scanner: '/api/scanner',
       recipeGenerator: '/api/recipe-generator',
       myBar: '/api/mybar',
+      config: {
+        getKey: '/api/config/key',
+        verify: '/api/config/verify'
+      },
       user: {
         sync: '/api/user/sync',
         profile: '/api/user/profile/:firebaseUid',
@@ -280,6 +285,11 @@ app.get('/', (req, res) => {
         cancel: '/api/subscription/cancel',
         checkReset: '/api/subscription/check-reset'
       },
+      revenueCat: {
+        webhook: '/api/revenuecat/webhook',
+        verify: '/api/revenuecat/verify',
+        offerings: '/api/revenuecat/offerings'
+      },
       favorites: {
         list: '/api/favorites/:firebaseUid',
         add: '/api/favorites/:firebaseUid',
@@ -292,6 +302,163 @@ app.get('/', (req, res) => {
       }
     }
   });
+});
+
+// NEW: Config endpoint dla aplikacji - bezpieczne pobieranie klucza
+app.get('/api/config/key', async (req, res) => {
+  try {
+    // Możesz dodać dodatkową weryfikację tutaj
+    const { platform, version } = req.query;
+    
+    // Tylko dla iOS na razie
+    if (platform !== 'ios') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Unsupported platform' 
+      });
+    }
+    
+    // Zwróć klucz RevenueCat z environment variables
+    const key = process.env.REVENUECAT_SECRET_KEY || process.env.REVENUECAT_IOS_KEY;
+    
+    if (!key) {
+      console.error('❌ RevenueCat key not configured in environment');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'RevenueCat not configured' 
+      });
+    }
+    
+    // Log but don't expose full key
+    console.log('🔑 RevenueCat key requested for platform:', platform);
+    
+    res.json({ 
+      success: true,
+      key: key,
+      platform: platform,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Config key error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve configuration' 
+    });
+  }
+});
+
+// NEW: RevenueCat webhook endpoint
+app.post('/api/revenuecat/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const event = JSON.parse(req.body.toString());
+    
+    console.log('🪝 RevenueCat webhook received:', event.type);
+    
+    // Handle different event types
+    switch (event.type) {
+      case 'INITIAL_PURCHASE':
+      case 'RENEWAL':
+        // Update user subscription in database
+        const { app_user_id, product_id } = event;
+        console.log(`💳 Subscription event for user ${app_user_id}: ${product_id}`);
+        
+        // Import User model and update
+        const User = require('./models/User');
+        const user = await User.findOne({ firebaseUid: app_user_id });
+        
+        if (user) {
+          // Determine subscription type from product_id
+          const subscriptionType = product_id.includes('annual') ? 'yearly' : 'monthly';
+          
+          user.subscription.type = subscriptionType;
+          user.subscription.startDate = new Date(event.purchased_at_ms);
+          user.subscription.endDate = new Date(event.expiration_at_ms);
+          user.subscription.revenueCatCustomerId = app_user_id;
+          
+          await user.save();
+          console.log(`✅ User subscription updated: ${user.email} -> ${subscriptionType}`);
+        }
+        break;
+        
+      case 'CANCELLATION':
+      case 'EXPIRATION':
+        // Handle subscription cancellation
+        console.log(`❌ Subscription cancelled/expired for user ${event.app_user_id}`);
+        break;
+        
+      default:
+        console.log('📝 Unhandled webhook event type:', event.type);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ RevenueCat webhook error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Webhook processing failed' 
+    });
+  }
+});
+
+// NEW: Verify purchase with RevenueCat
+app.post('/api/revenuecat/verify', async (req, res) => {
+  try {
+    const { userId, receipt } = req.body;
+    
+    if (!userId || !receipt) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User ID and receipt are required' 
+      });
+    }
+    
+    // Use RevenueCat API to verify
+    const REVENUECAT_KEY = process.env.REVENUECAT_SECRET_KEY;
+    
+    if (!REVENUECAT_KEY) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'RevenueCat not configured' 
+      });
+    }
+    
+    const response = await fetch(`https://api.revenuecat.com/v1/receipts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${REVENUECAT_KEY}`,
+        'Content-Type': 'application/json',
+        'X-Platform': 'ios'
+      },
+      body: JSON.stringify({
+        app_user_id: userId,
+        fetch_token: receipt
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('❌ RevenueCat verification failed:', data);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Purchase verification failed' 
+      });
+    }
+    
+    console.log('✅ Purchase verified for user:', userId);
+    
+    res.json({ 
+      success: true,
+      subscriber: data.subscriber,
+      entitlements: data.subscriber.entitlements
+    });
+  } catch (error) {
+    console.error('❌ Verify purchase error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to verify purchase' 
+    });
+  }
 });
 
 // API Routes - Order matters!
@@ -338,7 +505,7 @@ app.post('/api/stats/increment/:firebaseUid', async (req, res) => {
         firebaseUid,
         email: `${firebaseUid}@temp.com`,
         subscription: {
-          type: 'free', // Default to free, not trial
+          type: 'free',
           startDate: new Date()
         },
         stats: {
@@ -426,11 +593,13 @@ app.use((req, res) => {
     availableEndpoints: [
       '/health',
       '/api/status',
+      '/api/config/key',
       '/api/scanner',
       '/api/recipe-generator',
       '/api/mybar',
       '/api/user/*',
       '/api/subscription/*',
+      '/api/revenuecat/*',
       '/api/favorites/*',
       '/api/history/*'
     ]
@@ -555,24 +724,25 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🌐 URL: ${config.server.env === 'production' ? config.server.url : `http://localhost:${PORT}`}
 📊 MongoDB: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Connecting...'}
 🔐 Auth: ${process.env.FIREBASE_PROJECT_ID ? 'Firebase Admin Ready' : 'No Auth Configured'}
+💳 RevenueCat: ${process.env.REVENUECAT_SECRET_KEY ? 'Configured' : 'Not Configured'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 Available Endpoints:
    • Health Check: /health
    • API Status: /api/status
+   • Config Key: /api/config/key
    • Scanner: /api/scanner
    • Recipe Generator: /api/recipe-generator
    • My Bar: /api/mybar
    • User Management: /api/user/*
    • Subscription: /api/subscription/*
+   • RevenueCat: /api/revenuecat/*
    • History: /api/history/*
    • Favorites: /api/favorites/*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 Subscription Endpoints:
-   • GET  /api/subscription/:uid - Get status
-   • POST /api/subscription/upgrade - Upgrade subscription
-   • POST /api/subscription/sync - Sync subscription state
-   • POST /api/subscription/cancel - Cancel subscription
-   • POST /api/subscription/check-reset - Check daily reset
+💳 RevenueCat Endpoints:
+   • GET  /api/config/key - Get API key
+   • POST /api/revenuecat/webhook - Webhook
+   • POST /api/revenuecat/verify - Verify purchase
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 Rate Limits:
    • General API: 100 req/15min
