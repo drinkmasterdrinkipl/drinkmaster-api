@@ -21,15 +21,16 @@ ABSOLUTE RULES:
 
 GLASSWARE RULES (NEVER DEVIATE):
 
-COUPE GLASS (kieliszek coupe) - SERVED WITHOUT ICE:
+COUPE GLASS (kieliszek coupe) - ALWAYS SERVED WITHOUT ICE:
 - Daiquiri, Margarita, Clover Club, White Lady, Aviation, Sidecar
 - Most classic shaken cocktails served "up" (without ice)
 - Porn Star Martini, Cosmopolitan, Bee's Knees
 - Corpse Reviver #2, Blood and Sand, Hanky Panky
 
-MARTINI GLASS (kieliszek martini) - SERVED WITHOUT ICE:
-- Classic Martini, Manhattan, Espresso Martini
+MARTINI GLASS (kieliszek martini) - ALWAYS SERVED WITHOUT ICE:
+- Classic Martini, Manhattan, Espresso Martini, Martinez
 - Any "-tini" variation served up
+- All stirred cocktails served "up"
 
 ROCKS/OLD FASHIONED GLASS (szklanka rocks) - SERVED WITH ICE:
 - ALL SOUR cocktails (Whiskey Sour, Vodka Sour, Amaretto Sour, Pisco Sour)
@@ -75,6 +76,7 @@ CLASSIC IBA RECIPES WITH CORRECT GLASSWARE AND ICE:
 - Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass WITH ICE
 - Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash - STIRRED in ROCKS glass WITH ICE
 - Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash - STIRRED in MARTINI glass WITHOUT ICE
+- Martinez: gin 45ml, sweet vermouth 45ml, maraschino 7.5ml, orange bitters 2 dash - STIRRED in MARTINI glass WITHOUT ICE
 - Martini: gin 60ml, dry vermouth 10ml - STIRRED in MARTINI glass WITHOUT ICE
 - Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN in COUPE glass WITHOUT ICE
 - Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN in COUPE glass WITHOUT ICE
@@ -110,7 +112,7 @@ GLASSWARE DECISION TREE:
 1. Is it served with ice in the glass? → ROCKS or HIGHBALL or WINE or COPPER MUG
 2. Is it topped with soda/cola? → HIGHBALL WITH ICE
 3. Is it a sour? → ROCKS WITH ICE (always)
-4. Is it stirred and strong? → ROCKS WITH ICE (Negroni) or MARTINI WITHOUT ICE (Manhattan)
+4. Is it stirred and strong? → ROCKS WITH ICE (Negroni) or MARTINI WITHOUT ICE (Manhattan, Martinez)
 5. Is it shaken and served up? → COUPE WITHOUT ICE (preferred) or MARTINI WITHOUT ICE
 6. Does it contain Prosecco/Champagne as main ingredient? → WINE WITH ICE or FLUTE WITHOUT ICE
 7. Is it a tiki/tropical drink? → HURRICANE WITH ICE or special tiki mug
@@ -140,7 +142,7 @@ For POLISH (pl):
 - ginger beer = "piwo imbirowe"
 - sugar cube = "kostka cukru"
 - sugar = "cukier"
-- fresh mint = "świeża mięta"
+- fresh mint = "świeża miętą"
 - top/top up = "do pełna"
 - crème de mûre = "likier jeżynowy"
 - cherry brandy = "likier wiśniowy"
@@ -244,7 +246,7 @@ CRITICAL:
 - For soda/cola use "do pełna" NOT "0 ml"
 - SOUR cocktails MUST use "szklanka rocks" WITH ICE
 - HUGO MUST use "kieliszek do wina" WITH ICE
-- MANHATTAN, MARTINI, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
+- MANHATTAN, MARTINI, MARTINEZ, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
 - COUPE and MARTINI glasses = WITHOUT ICE ("bez lodu")
 - ROCKS, HIGHBALL, WINE glasses = WITH ICE ("kostki")
 - Follow GLASSWARE RULES and ICE RULES strictly
@@ -266,7 +268,7 @@ CRITICAL:
 - For soda/cola use "top up" NOT "0 ml"
 - SOUR cocktails MUST use "rocks glass" WITH ICE
 - HUGO MUST use "wine glass" WITH ICE
-- MANHATTAN, MARTINI, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
+- MANHATTAN, MARTINI, MARTINEZ, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
 - COUPE and MARTINI glasses = WITHOUT ICE ("no ice")
 - ROCKS, HIGHBALL, WINE glasses = WITH ICE ("cubed")
 - Follow GLASSWARE RULES and ICE RULES strictly
@@ -348,6 +350,30 @@ RETURN PURE JSON!`;
       // FIX SPECIFIC COCKTAILS AND GLASSWARE WITH ICE RULES
       const nameLower = finalCocktailName.toLowerCase();
       
+      // CRITICAL FIX: MARTINEZ must be martini glass WITHOUT ice
+      if (nameLower.includes('martinez')) {
+        recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
+        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
+        
+        // Fix instructions for Martinez
+        if (recipe.instructions && requestLanguage === 'pl') {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/szklanki rocks/g, 'kieliszka martini')
+              .replace(/szklanka rocks/g, 'kieliszek martini')
+              .replace(/z lodem/g, 'bez lodu')
+              .replace(/kostki lodu/g, 'bez lodu');
+          });
+        } else if (recipe.instructions) {
+          recipe.instructions = recipe.instructions.map(inst => {
+            return inst
+              .replace(/rocks glass/g, 'martini glass')
+              .replace(/with ice/g, 'without ice')
+              .replace(/cubed ice/g, 'no ice');
+          });
+        }
+      }
+      
       // Fix ALL SOUR cocktails - always rocks glass with ice
       if (nameLower.includes('sour')) {
         recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
@@ -361,6 +387,8 @@ RETURN PURE JSON!`;
               .replace(/szklanka highball/g, 'szklanka rocks')
               .replace(/kieliszka coupe/g, 'szklanki rocks')
               .replace(/kieliszek coupe/g, 'szklanka rocks')
+              .replace(/kieliszka martini/g, 'szklanki rocks')
+              .replace(/kieliszek martini/g, 'szklanka rocks')
               .replace(/bez lodu/g, 'z lodem');
           });
         } else if (recipe.instructions) {
@@ -368,6 +396,7 @@ RETURN PURE JSON!`;
             return inst
               .replace(/highball glass/g, 'rocks glass')
               .replace(/coupe glass/g, 'rocks glass')
+              .replace(/martini glass/g, 'rocks glass')
               .replace(/without ice/g, 'with ice');
           });
         }
@@ -387,7 +416,7 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Fix classic cocktails glassware and ice
+      // Fix classic cocktails glassware and ice - FORCE NO ICE for COUPE and MARTINI glasses
       if (nameLower.includes('daiquiri') || nameLower.includes('margarita') || 
           nameLower.includes('clover club') || nameLower.includes('white lady') ||
           nameLower.includes('aviation') || nameLower.includes('sidecar') ||
@@ -430,6 +459,36 @@ RETURN PURE JSON!`;
           nameLower.includes('bellini')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek flute" : "flute glass";
         recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
+      }
+      
+      // CRITICAL FIX: Force correct ice based on glass type
+      const glassType = recipe.glassType ? recipe.glassType.toLowerCase() : '';
+      
+      if (glassType.includes('coupe') || glassType.includes('martini') || 
+          glassType.includes('flute') || glassType.includes('nick')) {
+        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
+        
+        // Fix instructions to remove ice references
+        if (recipe.instructions) {
+          if (requestLanguage === 'pl') {
+            recipe.instructions = recipe.instructions.map(inst => {
+              return inst
+                .replace(/z lodem/g, 'bez lodu')
+                .replace(/kostki lodu/g, 'bez lodu')
+                .replace(/dodaj lód/g, 'nie dodawaj lodu')
+                .replace(/wlej do szklanki z lodem/g, 'wlej do kieliszka')
+                .replace(/napełnij lodem/g, 'nie dodawaj lodu');
+            });
+          } else {
+            recipe.instructions = recipe.instructions.map(inst => {
+              return inst
+                .replace(/with ice/g, 'without ice')
+                .replace(/add ice/g, 'do not add ice')
+                .replace(/fill with ice/g, 'serve without ice')
+                .replace(/over ice/g, 'without ice');
+            });
+          }
+        }
       }
       
       // Fix HUGO - always wine glass WITH ICE
