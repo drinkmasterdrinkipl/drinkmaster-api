@@ -400,12 +400,126 @@ const COCKTAIL_RECIPES = {
     category: 'classic'
   },
 
-  // PISCO COCKTAILS
-  'Pisco Sour': {
-    required: ['pisco', 'lime', 'sugar'],
-    optional: ['egg white', 'bitters'],
-    category: 'sour'
-  }
+  // DODANE KOKTAJLE DLA POLSKICH ALKOHOLI
+  'Cytrynówka Shot': {
+    required: ['lemon vodka'],
+    optional: [],
+    category: 'shot'
+  },
+  'Cytrynówka z Tonikiem': {
+    required: ['lemon vodka', 'tonic'],
+    optional: ['lemon'],
+    category: 'highball'
+  },
+  'Wiśniówka Shot': {
+    required: ['cherry vodka'],
+    optional: [],
+    category: 'shot'
+  },
+  'Krupnik z Kawą': {
+    required: ['honey liqueur', 'coffee'],
+    optional: ['cream'],
+    category: 'hot'
+  },
+  'Krupnik Hot': {
+    required: ['honey liqueur', 'hot water'],
+    optional: ['lemon', 'cinnamon'],
+    category: 'hot'
+  },
+  'Żołądkowa z Cytryną': {
+    required: ['herbal liqueur', 'lemon'],
+    optional: ['sugar'],
+    category: 'digestif'
+  },
+  'Bimber Shot': {
+    required: ['moonshine'],
+    optional: [],
+    category: 'shot'
+  },
+  'Bimber z Miodem': {
+    required: ['moonshine', 'honey'],
+    optional: ['lemon'],
+    category: 'traditional'
+  },
+  'Śliwowica Traditionalna': {
+    required: ['plum brandy'],
+    optional: [],
+    category: 'digestif'
+  },
+  'Miodówka z Cytryną': {
+    required: ['honey vodka', 'lemon'],
+    optional: ['hot water'],
+    category: 'traditional'
+  },
+  'Nalewka Babuni': {
+    required: ['fruit liqueur'],
+    optional: [],
+    category: 'digestif'
+  },
+  'Żubrówka Apple': {
+    required: ['vodka', 'apple juice'],
+    optional: [],
+    category: 'modern'
+  },
+
+  // DODANE KOKTAJLE DLA POJEDYNCZYCH ALKOHOLI
+  'Vodka Shot': {
+    required: ['vodka'],
+    optional: [],
+    category: 'shot'
+  },
+  'Whisky Neat': {
+    required: ['whisky'],
+    optional: [],
+    category: 'neat'
+  },
+  'Rum Shot': {
+    required: ['rum'],
+    optional: [],
+    category: 'shot'
+  },
+  'Gin Neat': {
+    required: ['gin'],
+    optional: [],
+    category: 'neat'
+  },
+  'Tequila Shot': {
+    required: ['tequila'],
+    optional: ['salt', 'lime'],
+    category: 'shot'
+  },
+  'Cognac Neat': {
+    required: ['cognac'],
+    optional: [],
+    category: 'neat'
+  },
+
+  // DODANE PROSTE MIXY
+  'Vodka Water': {
+    required: ['vodka', 'water'],
+    optional: ['lemon'],
+    category: 'simple'
+  },
+  'Whisky Water': {
+    required: ['whisky', 'water'],
+    optional: [],
+    category: 'simple'
+  },
+  'Rum Water': {
+    required: ['rum', 'water'],
+    optional: ['lime'],
+    category: 'simple'
+  },
+  'Vodka Lime': {
+    required: ['vodka', 'lime'],
+    optional: [],
+    category: 'simple'
+  },
+  'Whisky Lemon': {
+    required: ['whisky', 'lemon'],
+    optional: [],
+    category: 'simple'
+  },
 };
 
 const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails, their authentic recipes, AND brand names.
@@ -602,7 +716,7 @@ REMEMBER:
 function normalizeIngredient(ing) {
   const lower = ing.toLowerCase().trim();
   
-  // Brand to ingredient mapping - ROZSZERZONA
+  // DODANE POLSKIE ALKOHOLE I REGIONALNE MARKI
   const brandMap = {
     // Whiskey brands
     'jack daniels': 'whisky',
@@ -655,7 +769,7 @@ function normalizeIngredient(ing) {
     'broker\'s': 'gin',
     'brokers': 'gin',
     
-    // Vodka brands
+    // Vodka brands - DODANE POLSKIE
     'absolut': 'vodka',
     'grey goose': 'vodka',
     'smirnoff': 'vodka',
@@ -664,19 +778,54 @@ function normalizeIngredient(ing) {
     'belvedere': 'vodka',
     'finlandia': 'vodka',
     'wyborowa': 'vodka',
+    'żubrówka': 'vodka', // Polska żubrówka
+    'zubrowka': 'vodka',
+    'soplica': 'vodka', // Polska marka
+    'luksusowa': 'vodka', // Polska wódka
+    'chopin': 'vodka',
+    'ultimat': 'vodka',
     'tito\'s': 'vodka',
     'titos': 'vodka',
     'ketel one': 'vodka',
     'kettel one': 'vodka',
-    'chopin': 'vodka',
-    'zubrowka': 'vodka',
-    'żubrówka': 'vodka',
     'russian standard': 'vodka',
     'skyy': 'vodka',
     'ciroc': 'vodka',
     'crystal head': 'vodka',
     'beluga': 'vodka',
-    'ultimat': 'vodka',
+    'potocki': 'vodka', // Polska marka
+    'ostoya': 'vodka', // Polska marka
+    'pan tadeusz': 'vodka', // Polska marka
+    
+    // POLSKIE NALEWKI I WÓDKI SMAKOWE
+    'cytrynówka': 'lemon vodka',
+    'wiśniówka': 'cherry vodka',
+    'śliwowica': 'plum brandy',
+    'sliwowica': 'plum brandy',
+    'miodówka': 'honey vodka',
+    'miodowka': 'honey vodka',
+    'krupnik': 'honey liqueur',
+    'goldwasser': 'herbal liqueur',
+    'żołądkowa gorzka': 'herbal liqueur',
+    'zoladkowa gorzka': 'herbal liqueur',
+    'żołądkowa': 'herbal liqueur',
+    'zoladkowa': 'herbal liqueur',
+    'bimber': 'moonshine', // Polski bimber
+    'samogon': 'moonshine',
+    'nalewka': 'fruit liqueur',
+    'nalewka babuni': 'fruit liqueur',
+    'dereniówka': 'dogwood liqueur',
+    'pigwówka': 'quince liqueur',
+    'wiśniowa': 'cherry liqueur',
+    'wiśniówka': 'cherry liqueur',
+    'wisniowka': 'cherry liqueur',
+    'wisniowa': 'cherry liqueur',
+    'malinówka': 'raspberry liqueur',
+    'malinowka': 'raspberry liqueur',
+    'jeżynówka': 'blackberry liqueur',
+    'jezzynowka': 'blackberry liqueur',
+    'orzechówka': 'walnut liqueur',
+    'orzechowka': 'walnut liqueur',
     
     // Rum brands
     'bacardi': 'rum',
@@ -1044,10 +1193,76 @@ function hasIngredient(userIngredients, required) {
            normalizedUser.includes('lemon-lime soda');
   }
   
-  if (required === 'honey') {
-    return normalizedUser.includes('honey') || 
-           normalizedUser.includes('miód') ||
-           normalizedUser.includes('miod');
+  if (required === 'lemon vodka') {
+    return normalizedUser.includes('lemon vodka') || 
+           normalizedUser.includes('cytrynówka') ||
+           normalizedUser.includes('cytrynowka');
+  }
+  
+  if (required === 'cherry vodka') {
+    return normalizedUser.includes('cherry vodka') || 
+           normalizedUser.includes('wiśniówka') ||
+           normalizedUser.includes('wisniowka');
+  }
+  
+  if (required === 'honey liqueur') {
+    return normalizedUser.includes('honey liqueur') || 
+           normalizedUser.includes('krupnik') ||
+           normalizedUser.includes('miodówka') ||
+           normalizedUser.includes('miodowka') ||
+           normalizedUser.includes('honey vodka');
+  }
+  
+  if (required === 'herbal liqueur') {
+    return normalizedUser.includes('herbal liqueur') || 
+           normalizedUser.includes('żołądkowa') ||
+           normalizedUser.includes('zoladkowa') ||
+           normalizedUser.includes('żołądkowa gorzka') ||
+           normalizedUser.includes('zoladkowa gorzka') ||
+           normalizedUser.includes('jagermeister');
+  }
+  
+  if (required === 'moonshine') {
+    return normalizedUser.includes('moonshine') || 
+           normalizedUser.includes('bimber') ||
+           normalizedUser.includes('samogon');
+  }
+  
+  if (required === 'plum brandy') {
+    return normalizedUser.includes('plum brandy') || 
+           normalizedUser.includes('śliwowica') ||
+           normalizedUser.includes('sliwowica');
+  }
+  
+  if (required === 'fruit liqueur') {
+    return normalizedUser.includes('fruit liqueur') || 
+           normalizedUser.includes('nalewka') ||
+           normalizedUser.includes('nalewka babuni') ||
+           normalizedUser.includes('dereniówka') ||
+           normalizedUser.includes('pigwówka') ||
+           normalizedUser.includes('malinówka') ||
+           normalizedUser.includes('jeżynówka') ||
+           normalizedUser.includes('orzechówka');
+  }
+  
+  if (required === 'honey vodka') {
+    return normalizedUser.includes('honey vodka') || 
+           normalizedUser.includes('miodówka') ||
+           normalizedUser.includes('miodowka');
+  }
+  
+  if (required === 'apple juice') {
+    return normalizedUser.includes('apple juice') || 
+           normalizedUser.includes('sok jabłkowy') ||
+           normalizedUser.includes('sok jablkowy') ||
+           normalizedUser.includes('apple') ||
+           normalizedUser.includes('jabłko') ||
+           normalizedUser.includes('jablko');
+  }
+  
+  if (required === 'water') {
+    return normalizedUser.includes('water') || 
+           normalizedUser.includes('woda');
   }
   
   return normalizedUser.includes(required);
@@ -1198,6 +1413,27 @@ function translateIngredient(ingredient, language) {
     'baileys': 'baileys',
     'campari': 'campari',
     'aperol': 'aperol',
+    'amaretto': 'amaretto',
+    'lemon vodka': 'cytrynówka',
+    'cherry vodka': 'wiśniówka',
+    'honey liqueur': 'krupnik',
+    'honey vodka': 'miodówka',
+    'herbal liqueur': 'żołądkowa',
+    'moonshine': 'bimber',
+    'plum brandy': 'śliwowica',
+    'fruit liqueur': 'nalewka',
+    'apple juice': 'sok jabłkowy',
+    'water': 'woda',
+    'whisky': 'whisky',
+    'gin': 'gin',
+    'vodka': 'wódka',
+    'rum': 'rum',
+    'tequila': 'tequila',
+    'cognac': 'koniak',
+    'kahlua': 'kahlua',
+    'baileys': 'baileys',
+    'campari': 'campari',
+    'aperol': 'aperol',
     'amaretto': 'amaretto'
   };
   
@@ -1272,7 +1508,29 @@ function getPolishCocktailName(englishName) {
     'Mexican Mule': 'Meksykański Muł',
     'Caipirinha': 'Caipirinha',
     'Caipiroska': 'Caipiroska',
-    'Pisco Sour': 'Pisco Sour'
+    'Cytrynówka Shot': 'Shot Cytrynówki',
+    'Cytrynówka z Tonikiem': 'Cytrynówka z Tonikiem',
+    'Wiśniówka Shot': 'Shot Wiśniówki',
+    'Krupnik z Kawą': 'Krupnik z Kawą',
+    'Krupnik Hot': 'Gorący Krupnik',
+    'Żołądkowa z Cytryną': 'Żołądkowa z Cytryną',
+    'Bimber Shot': 'Shot Bimbru',
+    'Bimber z Miodem': 'Bimber z Miodem',
+    'Śliwowica Traditionalna': 'Tradycyjna Śliwowica',
+    'Miodówka z Cytryną': 'Miodówka z Cytryną',
+    'Nalewka Babuni': 'Nalewka Babuni',
+    'Żubrówka Apple': 'Żubrówka z Jabłkiem',
+    'Vodka Shot': 'Shot Wódki',
+    'Whisky Neat': 'Whisky Czysta',
+    'Rum Shot': 'Shot Rumu',
+    'Gin Neat': 'Gin Czysty',
+    'Tequila Shot': 'Shot Tequili',
+    'Cognac Neat': 'Koniak Czysty',
+    'Vodka Water': 'Wódka z Wodą',
+    'Whisky Water': 'Whisky z Wodą',
+    'Rum Water': 'Rum z Wodą',
+    'Vodka Lime': 'Wódka z Limonką',
+    'Whisky Lemon': 'Whisky z Cytryną',
   };
   
   return cocktailTranslations[englishName] || englishName;
