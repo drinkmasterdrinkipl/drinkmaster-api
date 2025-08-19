@@ -1,4 +1,5 @@
 const { OpenAI } = require('openai');
+const User = require('../models/User'); // DODANE: Import modelu User
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -142,7 +143,7 @@ For POLISH (pl):
 - ginger beer = "piwo imbirowe"
 - sugar cube = "kostka cukru"
 - sugar = "cukier"
-- fresh mint = "świeża miętą"
+- fresh mint = "świeża mięta"
 - top/top up = "do pełna"
 - crème de mûre = "likier jeżynowy"
 - cherry brandy = "likier wiśniowy"
@@ -207,6 +208,112 @@ JSON FORMAT:
   "ice": "[ice type in request language - NOT in ingredients]"
 }`;
 
+// DODANE: Helper function to check daily limits
+const checkDailyLimit = async (firebaseUid) => {
+  try {
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, using default limits');
+      return { allowed: true, remaining: 3 };
+    }
+
+    const user = await User.findOne({ firebaseUid });
+    if (!user) {
+      console.log('⚠️ User not found, using default limits');
+      return { allowed: true, remaining: 3 };
+    }
+
+    // For now, always allow (implement limit logic later)
+    return { allowed: true, remaining: 3 };
+  } catch (error) {
+    console.error('Error checking limits:', error);
+    return { allowed: true, remaining: 3 }; // Allow by default if error
+  }
+};
+
+// DODANE: Helper function to update user stats - AKTUALIZUJE STATYSTYKI PRZEPISY
+const updateUserStats = async (firebaseUid) => {
+  try {
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, skipping stats update');
+      return;
+    }
+
+    // KLUCZOWA ZMIANA: Zwiększ statystyki PRZEPISY (nie MyBar)
+    const result = await User.findOneAndUpdate(
+      { firebaseUid },
+      { 
+        $inc: { 
+          'stats.totalRecipes': 1,        // ← Statystyki "Przepisy"
+          'stats.dailyRecipes': 1         // ← Statystyki "Przepisy"
+        },
+        lastActive: new Date()
+      },
+      { new: true }
+    );
+    
+    console.log('✅ Updated Recipe Generator stats for user:', firebaseUid);
+    console.log('📊 New stats:', {
+      totalRecipes: result?.stats?.totalRecipes,
+      dailyRecipes: result?.stats?.dailyRecipes
+    });
+  } catch (error) {
+    console.error('Error updating recipe stats:', error);
+  }
+};
+
+// DODANE: Helper function to save recipe to user history
+const saveRecipeToHistory = async (firebaseUid, recipe) => {
+  try {
+    if (!firebaseUid) {
+      console.log('⚠️ No firebaseUid provided, skipping history save');
+      return;
+    }
+
+    const historyEntry = {
+      timestamp: new Date(),
+      name: recipe.name,
+      nameEn: recipe.nameEn,
+      category: recipe.category,
+      ingredients: recipe.ingredients || [],
+      instructions: recipe.instructions || [],
+      difficulty: recipe.difficulty || 'medium',
+      prepTime: recipe.prepTime || 5,
+      glassType: recipe.glassType,
+      ice: recipe.ice,
+      garnish: recipe.garnish || '',
+      alcoholContent: recipe.alcoholContent || 'medium',
+      servingTemp: recipe.servingTemp || '5',
+      method: recipe.method,
+      history: recipe.history || '',
+      funFact: recipe.funFact || recipe.history || '',
+      abv: recipe.abv || 25,
+      flavor: recipe.flavor || '',
+      occasion: recipe.occasion || '',
+      tags: recipe.tags || [],
+      tips: recipe.tips || [],
+      proTip: recipe.proTip || ''
+    };
+
+    await User.findOneAndUpdate(
+      { firebaseUid },
+      { 
+        $push: { 
+          recipeHistory: {
+            $each: [historyEntry],
+            $slice: -50 // Keep only last 50 recipes
+          }
+        },
+        lastActive: new Date()
+      },
+      { new: true }
+    );
+    
+    console.log('✅ Recipe saved to history:', recipe.name);
+  } catch (error) {
+    console.error('Error saving recipe to history:', error);
+  }
+};
+
 module.exports = async (req, res) => {
   console.log('🍹 Recipe generator endpoint called');
   
@@ -221,12 +328,22 @@ module.exports = async (req, res) => {
     
     console.log(`🔍 Generating recipe for: ${finalCocktailName}`);
     console.log(`🌍 Language requested: ${requestLanguage}`);
-    console.log(`👤 FirebaseUid: ${firebaseUid}`);
+    console.log(`👤 FirebaseUid: ${firebaseUid || 'not provided'}`);
     
     if (!finalCocktailName) {
       return res.status(400).json({ 
         success: false,
         error: 'Cocktail name is required' 
+      });
+    }
+
+    // DODANE: Check rate limit
+    const limitCheck = await checkDailyLimit(firebaseUid);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: limitCheck.error || 'Daily limit reached',
+        remaining: 0
       });
     }
 
@@ -707,6 +824,12 @@ RETURN PURE JSON!`;
     console.log('🥃 Glass type:', response.glassType);
     console.log('🧊 Ice:', response.ice);
     console.log('📊 Ingredients:', response.ingredients.map(i => `${i.name}: ${i.amount}${i.unit}`));
+    
+    // DODANE: Update user stats and save to history
+    if (firebaseUid) {
+      await updateUserStats(firebaseUid);
+      await saveRecipeToHistory(firebaseUid, response);
+    }
     
     res.status(200).json(response);
     
