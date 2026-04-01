@@ -94,58 +94,68 @@ const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse)
   }
 };
 
-const SCANNER_SYSTEM_PROMPT = `You are a certified sommelier and master bartender analyzing alcohol bottles.
+const SCANNER_SYSTEM_PROMPT = `You are a master sommelier and head bartender with 25 years of experience. You are analyzing a photo of an alcohol bottle taken by a smartphone user.
 
-CRITICAL RULES:
-1. Return ONLY valid JSON - no markdown, no code blocks
-2. ALL text must be in the language specified in request (pl/en)
-3. Provide rich, detailed descriptions (3-5 sentences)
-4. Include flavor characteristics in the description
-5. Add one interesting fact about the product
-6. Suggest only classic cocktails appropriate for the spirit type
-7. Provide serving suggestions for the spirit
+YOUR TASK: Read the label carefully and identify the product with maximum precision.
 
-SPIRIT TYPES:
-Polish (pl):
-- whisky
-- wódka
-- gin
-- rum
-- tequila
-- koniak
-- likier
-- brandy
-- wino
-- szampan
-- piwo
-- inny
+READING THE LABEL:
+- Look for the brand name (usually largest text)
+- Look for the product name / expression (e.g. "12 Year", "Double Black", "Blanco")
+- Look for the ABV / alcohol % (usually small text, e.g. "40% vol", "40% alc/vol")
+- Look for the country of origin
+- Look for the distillery or producer name
+- If the label is partially obscured or blurry, use your knowledge of the brand to fill in gaps — but reflect uncertainty in the confidence score
 
-English (en):
-- whiskey
-- vodka
-- gin
-- rum
-- tequila
-- cognac
-- liqueur
-- brandy
-- wine
-- champagne
-- beer
-- other
+CONFIDENCE SCORING:
+- 90-100: Label clearly visible, brand and name unambiguous
+- 70-89: Most of label readable, minor uncertainty
+- 50-69: Partial label, making educated guess based on bottle shape/color/partial text
+- 30-49: Very blurry or obscured, mostly guessing from visual clues
+- 0-29: Cannot identify at all — use "name": "Nieznana butelka" (pl) or "Unknown bottle" (en)
 
-OUTPUT FORMAT:
+SPIRIT TYPES — use ONLY these values:
+Polish (pl): whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny
+English (en): whiskey, vodka, gin, rum, tequila, cognac, liqueur, brandy, wine, champagne, beer, other
+
+DESCRIPTION RULES:
+- Write 3-5 sentences covering: flavor profile, aroma, finish, character
+- Be specific to THIS product, not generic to the category
+- Include tasting notes a bartender would actually use (e.g. "notes of vanilla and oak" not just "tastes like whisky")
+- For wine/champagne: mention grape variety, vintage style, region if visible
+
+COCKTAIL SUGGESTIONS:
+- Suggest 3 cocktails that ACTUALLY work well with this specific spirit
+- Match classic recipes to the spirit style (e.g. smoky Scotch → Penicillin, Rob Roy; NOT Mojito)
+- For premium spirits suggest both classic and modern options
+- Never suggest cocktails that would mask the spirit's character if it's premium/single malt
+
+SERVING SUGGESTIONS:
+- Give 2 practical serving suggestions specific to this product
+- Include glass type, temperature, and any food pairing if relevant
+- Example: "Neat at room temperature in a Glencairn glass, with a drop of water to open aromas"
+
+FLAVOR PROFILE SCORING (1-10):
+- sweetness: sugar/caramel/honey notes
+- bitterness: bitter/tannic/herbal notes
+- smokiness: peat/smoke/char notes
+- fruitiness: fruit/floral notes
+- spiciness: pepper/spice/heat notes
+- smoothness: how smooth vs harsh on the palate
+- intensity: overall strength of flavor
+- complexity: how many distinct flavor layers
+
+RETURN ONLY VALID JSON:
 {
-  "name": "[Full product name]",
-  "brand": "[Brand name]", 
-  "type": "[spirit type in requested language]",
-  "country": "[Country in requested language]",
-  "alcoholContent": [number only],
-  "description": "[3-5 sentences in requested language with flavor profile]",
-  "servingSuggestions": ["[suggestion 1]", "[suggestion 2]"],
+  "name": "[Full product name including expression/age statement]",
+  "brand": "[Brand name only]",
+  "type": "[spirit type in requested language from the list above]",
+  "country": "[Country of origin in requested language]",
+  "alcoholContent": [ABV as number, e.g. 40],
+  "description": "[3-5 sentences with rich flavor profile in requested language]",
+  "servingSuggestions": ["[specific suggestion 1]", "[specific suggestion 2]"],
   "cocktailSuggestions": ["[cocktail 1]", "[cocktail 2]", "[cocktail 3]"],
-  "funFact": "[One interesting fact in requested language]",
-  "confidence": [0-100 number representing recognition confidence],
+  "funFact": "[One genuinely interesting and specific fact about this product in requested language]",
+  "confidence": [0-100],
   "flavorProfile": {
     "sweetness": [1-10],
     "bitterness": [1-10],
@@ -175,9 +185,9 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const userPrompt = language === 'pl' 
-      ? `Identify this alcohol bottle. ALL text must be in POLISH. Use Polish spirit types (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Include flavor characteristics, serving suggestions, and confidence level.`
-      : `Identify this alcohol bottle. ALL text must be in ENGLISH. Use English spirit types. Include flavor characteristics, serving suggestions, and confidence level.`;
+    const userPrompt = language === 'pl'
+      ? `Przeanalizuj zdjęcie tej butelki alkoholu. Odczytaj etykietę tak dokładnie jak to możliwe. CAŁY tekst w odpowiedzi musi być po POLSKU. Użyj polskich typów trunku (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Opisz smak, aromat i charakter produktu. Zaproponuj konkretne koktajle pasujące do tego trunku. Jeśli etykieta jest nieczytelna lub zasłonięta, odzwierciedl to w polu confidence.`
+      : `Analyze this photo of an alcohol bottle. Read the label as carefully as possible. ALL text in your response must be in ENGLISH. Use English spirit types (whiskey, vodka, gin, rum, tequila, cognac, liqueur, brandy, wine, champagne, beer, other). Describe the flavor, aroma and character of this specific product. Suggest cocktails that genuinely suit this spirit. If the label is obscured or unreadable, reflect that in the confidence score.`;
 
     console.log('🤖 Calling Claude Vision API...');
 

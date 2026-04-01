@@ -168,7 +168,7 @@ JSON FORMAT:
   "name": "[name in request language]",
   "nameEn": "[English name]",
   "category": "classic/modern/tiki/sour/highball",
-  "history": "[2-3 sentences of real history in request language]",
+  "history": "[2-3 sentences of REAL, specific history — origin story, creator, year if known]",
   "ingredients": [
     {"name": "[ingredient in request language]", "amount": "[number or 'top up']", "unit": "[unit in request language]"}
   ],
@@ -182,7 +182,11 @@ JSON FORMAT:
     "[COMPLETE sentence matching the method - step 5]"
   ],
   "garnish": "[garnish in request language]",
-  "ice": "[ice type in request language - NOT in ingredients]"
+  "ice": "[ice type in request language - NOT in ingredients]",
+  "abv": [estimated ABV of the finished drink as a number, e.g. 18],
+  "flavor": "[2-3 flavor keywords in request language, e.g. 'cytrusowy, orzeźwiający, lekko słodki']",
+  "occasion": "[when to drink this, in request language, e.g. 'aperitif, letnie popołudnie']",
+  "proTip": "[ONE professional bartender tip that genuinely improves this cocktail, in request language]"
 }`;
 
 module.exports = async (req, res) => {
