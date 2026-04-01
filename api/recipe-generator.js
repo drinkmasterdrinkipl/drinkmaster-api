@@ -258,7 +258,7 @@ RETURN PURE JSON!`;
 
     const completion = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      max_tokens: 2000,
       system: RECIPE_SYSTEM_PROMPT,
       messages: [
         { role: "user", content: userPrompt }
@@ -266,19 +266,27 @@ RETURN PURE JSON!`;
     });
 
     const aiResponse = completion.content[0].text;
-    console.log('🤖 AI Response received');
-    
-    // Parse response
+    console.log('🤖 AI Response received, length:', aiResponse.length);
+
+    // Robust JSON extraction
     let recipe;
     try {
-      const cleanedResponse = aiResponse
+      // Strip markdown code fences
+      let cleaned = aiResponse
         .replace(/```json\s*/gi, '')
         .replace(/```\s*/gi, '')
-        .replace(/^[^{]*/, '')
-        .replace(/[^}]*$/, '')
         .trim();
-        
-      recipe = JSON.parse(cleanedResponse);
+
+      // Extract the first complete JSON object
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+
+      if (start === -1 || end === -1 || end < start) {
+        throw new Error('No JSON object found in AI response');
+      }
+
+      cleaned = cleaned.slice(start, end + 1);
+      recipe = JSON.parse(cleaned);
       
       // Remove ice from ingredients if present
       if (recipe.ingredients) {
@@ -545,12 +553,12 @@ RETURN PURE JSON!`;
       recipe.alcoholContent = "medium";
       
     } catch (parseError) {
-      console.error('Parse error:', parseError);
-      console.error('Raw response:', aiResponse);
-      return res.status(500).json({ 
+      console.error('Parse error:', parseError.message);
+      console.error('Raw AI response (first 500 chars):', aiResponse ? aiResponse.substring(0, 500) : 'empty');
+      return res.status(500).json({
         success: false,
         error: 'Failed to parse recipe',
-        message: 'Invalid JSON response'
+        message: 'Invalid JSON response from AI: ' + parseError.message
       });
     }
 
