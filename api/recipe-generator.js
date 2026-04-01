@@ -1,8 +1,7 @@
-const { OpenAI } = require('openai');
-const User = require('../models/User'); // DODANE: Import modelu User
+const Anthropic = require('@anthropic-ai/sdk');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years of experience. Create ONLY authentic, complete recipes according to IBA standards and classic cocktail books like "The Savoy Cocktail Book" by Harry Craddock (1930).
@@ -22,101 +21,92 @@ ABSOLUTE RULES:
 
 GLASSWARE RULES (NEVER DEVIATE):
 
-COUPE GLASS (kieliszek coupe) - ALWAYS SERVED WITHOUT ICE:
+COUPE GLASS (kieliszek coupe):
 - Daiquiri, Margarita, Clover Club, White Lady, Aviation, Sidecar
-- Most classic shaken cocktails served "up" (without ice)
+- Most classic shaken cocktails without ice
 - Porn Star Martini, Cosmopolitan, Bee's Knees
-- Corpse Reviver #2, Blood and Sand, Hanky Panky
 
-MARTINI GLASS (kieliszek martini) - ALWAYS SERVED WITHOUT ICE:
-- Classic Martini, Manhattan, Espresso Martini, Martinez
-- Any "-tini" variation served up
-- All stirred cocktails served "up"
-
-ROCKS/OLD FASHIONED GLASS (szklanka rocks) - SERVED WITH ICE:
+ROCKS/OLD FASHIONED GLASS (szklanka rocks):
 - ALL SOUR cocktails (Whiskey Sour, Vodka Sour, Amaretto Sour, Pisco Sour)
 - Old Fashioned, Negroni, Boulevardier, Sazerac
-- Bramble (with crushed ice), Caipirinha (with crushed ice)
-- Mint Julep (with crushed ice), Smash cocktails (with crushed ice)
+- Bramble (with crushed ice), Caipirinha
 - Any spirit served "on the rocks"
-- Mai Tai
 
-HIGHBALL GLASS (szklanka highball) - SERVED WITH ICE:
-- Mojito (with crushed ice), Cuba Libre, Paloma, Tom Collins
+HIGHBALL GLASS (szklanka highball):
+- Mojito, Cuba Libre, Paloma, Tom Collins
 - Moscow Mule (unless copper mug available)
 - Long Island Iced Tea, Dark 'n' Stormy
 - Any cocktail with soda/cola top-up
 
-WINE GLASS (kieliszek do wina) - SERVED WITH ICE:
+MARTINI GLASS (kieliszek martini):
+- Classic Martini, Manhattan, Espresso Martini
+- Any "-tini" variation served up
+
+WINE GLASS (kieliszek do wina):
 - Hugo, Aperol Spritz, any wine-based cocktails
 - Sangria, wine cocktails
 
-COPPER MUG (kubek miedziany) - SERVED WITH ICE:
+COPPER MUG (kubek miedziany):
 - Moscow Mule (traditional), Kentucky Mule
 
-FLUTE GLASS (kieliszek flute) - SERVED WITHOUT ICE:
+FLUTE GLASS (kieliszek flute):
 - French 75, Mimosa, Bellini
 - Any champagne-based cocktail
 
-COLLINS GLASS (szklanka collins) - SERVED WITH ICE:
+COLLINS GLASS (szklanka collins):
 - Tom Collins, John Collins, any Collins variation
 - Can substitute highball if needed
 
-HURRICANE GLASS (szklanka hurricane) - SERVED WITH ICE:
+HURRICANE GLASS (szklanka hurricane):
 - Hurricane, tropical tiki drinks
 
-NICK & NORA (kieliszek nick & nora) - SERVED WITHOUT ICE:
+NICK & NORA (kieliszek nick & nora):
 - Alternative to coupe for classic cocktails
 - Martini variations, Manhattan variations
 
-ICE SERVING RULES:
-- COUPE, MARTINI, FLUTE, NICK & NORA = NO ICE in serving glass (served "up")
-- ROCKS, HIGHBALL, COLLINS, HURRICANE, WINE, COPPER MUG = WITH ICE in serving glass
+CLASSIC IBA RECIPES WITH CORRECT GLASSWARE:
+- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass
+- Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash - STIRRED in ROCKS glass
+- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash - STIRRED in MARTINI glass
+- Martini: gin 60ml, dry vermouth 10ml - STIRRED in MARTINI glass
+- Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN in COUPE glass
+- Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN in COUPE glass
+- Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional) - SHAKEN in ROCKS glass
+- Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
+- Amaretto Sour: amaretto 45ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass
+- Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash - SHAKEN in ROCKS glass
+- Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda water top - BUILT in HIGHBALL glass
+- Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml - BUILT in COPPER MUG (or highball)
+- Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml - SHAKEN in COUPE glass
+- Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN in MARTINI glass
+- Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml - BUILT in WINE glass
+- Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN in COUPE glass
+- Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN in ROCKS glass
+- Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT in HIGHBALL glass
+- Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT in WINE glass
+- Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN in HIGHBALL glass
+- French 75: gin 30ml, fresh lemon juice 15ml, simple syrup 10ml, Champagne top - SHAKEN & BUILT in FLUTE glass
 
-CLASSIC IBA RECIPES WITH CORRECT GLASSWARE AND ICE:
-- Negroni: gin 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass WITH ICE
-- Old Fashioned: bourbon/rye 60ml, sugar cube 1, Angostura 2 dash, Orange bitters 1 dash - STIRRED in ROCKS glass WITH ICE
-- Manhattan: rye whiskey 60ml, sweet vermouth 30ml, Angostura 2 dash - STIRRED in MARTINI glass WITHOUT ICE
-- Martinez: gin 45ml, sweet vermouth 45ml, maraschino 7.5ml, orange bitters 2 dash - STIRRED in MARTINI glass WITHOUT ICE
-- Martini: gin 60ml, dry vermouth 10ml - STIRRED in MARTINI glass WITHOUT ICE
-- Margarita: tequila 50ml, Cointreau 30ml, fresh lime juice 20ml - SHAKEN in COUPE glass WITHOUT ICE
-- Daiquiri: white rum 60ml, fresh lime juice 25ml, simple syrup 15ml - SHAKEN in COUPE glass WITHOUT ICE
-- Whiskey Sour: whiskey 60ml, fresh lemon juice 30ml, simple syrup 20ml, egg white (optional) - SHAKEN in ROCKS glass WITH ICE
-- Vodka Sour: vodka 60ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass WITH ICE
-- Amaretto Sour: amaretto 45ml, fresh lemon juice 30ml, simple syrup 15ml, egg white (optional) - SHAKEN in ROCKS glass WITH ICE
-- Pisco Sour: pisco 60ml, fresh lime juice 30ml, simple syrup 20ml, egg white, Angostura 3 dash - SHAKEN in ROCKS glass WITH ICE
-- Mojito: white rum 50ml, fresh lime juice 30ml, sugar 2 tsp, fresh mint 10-12 leaves, soda water top - BUILT in HIGHBALL glass WITH CRUSHED ICE
-- Moscow Mule: vodka 50ml, fresh lime juice 15ml, ginger beer 120ml - BUILT in COPPER MUG (or highball) WITH ICE
-- Porn Star Martini: vodka 50ml, passion fruit puree 30ml, vanilla syrup 15ml, fresh lime juice 15ml, Prosecco 60ml - SHAKEN in COUPE glass WITHOUT ICE
-- Espresso Martini: vodka 50ml, coffee liqueur 20ml, fresh espresso 30ml, simple syrup 10ml - SHAKEN in MARTINI glass WITHOUT ICE
-- Aperol Spritz: Aperol 60ml, Prosecco 90ml, soda 30ml - BUILT in WINE glass WITH ICE
-- Cosmopolitan: vodka citron 45ml, Cointreau 15ml, fresh lime juice 15ml, cranberry juice 30ml - SHAKEN in COUPE glass WITHOUT ICE
-- Mai Tai: aged rum 30ml, rhum agricole 30ml, orange curaçao 15ml, orgeat 15ml, fresh lime juice 30ml - SHAKEN in ROCKS glass WITH ICE
-- Cuba Libre: rum 50ml, cola 120ml, fresh lime juice 10ml - BUILT in HIGHBALL glass WITH ICE
-- Hugo: Prosecco 90ml, elderflower syrup 30ml, fresh lime juice 20ml, soda water 30ml, fresh mint 10 leaves - BUILT in WINE glass WITH ICE
-- Long Island Iced Tea: vodka 15ml, gin 15ml, white rum 15ml, tequila 15ml, Cointreau 15ml, fresh lemon juice 25ml, simple syrup 15ml, cola top - SHAKEN in HIGHBALL glass WITH ICE
-- French 75: gin 30ml, fresh lemon juice 15ml, simple syrup 10ml, Champagne top - SHAKEN & BUILT in FLUTE glass WITHOUT ICE
-
-CLASSIC EXTENDED RECIPES WITH CORRECT GLASSWARE AND ICE:
-- Bramble: gin 50ml, fresh lemon juice 25ml, simple syrup 12.5ml, crème de mûre 15ml - SHAKEN in ROCKS glass WITH CRUSHED ICE
-- Clover Club: gin 50ml, raspberry syrup 15ml, fresh lemon juice 15ml, egg white 1 - SHAKEN in COUPE glass WITHOUT ICE
-- Hanky Panky: gin 45ml, sweet vermouth 45ml, Fernet Branca 7.5ml - STIRRED in COUPE glass WITHOUT ICE
-- Blood and Sand: Scotch whisky 25ml, cherry brandy 25ml, sweet vermouth 25ml, fresh orange juice 25ml - SHAKEN in COUPE glass WITHOUT ICE
-- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse - SHAKEN in COUPE glass WITHOUT ICE
-- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml - SHAKEN in COUPE glass WITHOUT ICE
-- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml - SHAKEN in COUPE glass WITHOUT ICE
-- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml - SHAKEN in COUPE glass WITHOUT ICE
-- Boulevardier: bourbon 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass WITH ICE
-- Sazerac: rye whiskey 60ml, sugar cube 1, Peychaud's bitters 3 dash, absinthe rinse - STIRRED in ROCKS glass WITH ICE
+CLASSIC EXTENDED RECIPES WITH CORRECT GLASSWARE:
+- Bramble: gin 50ml, fresh lemon juice 25ml, simple syrup 12.5ml, crème de mûre 15ml - SHAKEN in ROCKS glass (crushed ice)
+- Clover Club: gin 50ml, raspberry syrup 15ml, fresh lemon juice 15ml, egg white 1 - SHAKEN in COUPE glass
+- Hanky Panky: gin 45ml, sweet vermouth 45ml, Fernet Branca 7.5ml - STIRRED in COUPE glass
+- Blood and Sand: Scotch whisky 25ml, cherry brandy 25ml, sweet vermouth 25ml, fresh orange juice 25ml - SHAKEN in COUPE glass
+- Corpse Reviver #2: gin 25ml, Cointreau 25ml, Lillet Blanc 25ml, fresh lemon juice 25ml, absinthe rinse - SHAKEN in COUPE glass
+- White Lady: gin 40ml, Cointreau 30ml, fresh lemon juice 20ml - SHAKEN in COUPE glass
+- Aviation: gin 45ml, maraschino 15ml, fresh lemon juice 15ml, crème de violette 5ml - SHAKEN in COUPE glass
+- Sidecar: cognac 50ml, Cointreau 25ml, fresh lemon juice 25ml - SHAKEN in COUPE glass
+- Boulevardier: bourbon 30ml, Campari 30ml, sweet vermouth 30ml - STIRRED in ROCKS glass
+- Sazerac: rye whiskey 60ml, sugar cube 1, Peychaud's bitters 3 dash, absinthe rinse - STIRRED in ROCKS glass
 
 GLASSWARE DECISION TREE:
-1. Is it served with ice in the glass? → ROCKS or HIGHBALL or WINE or COPPER MUG
-2. Is it topped with soda/cola? → HIGHBALL WITH ICE
-3. Is it a sour? → ROCKS WITH ICE (always)
-4. Is it stirred and strong? → ROCKS WITH ICE (Negroni) or MARTINI WITHOUT ICE (Manhattan, Martinez)
-5. Is it shaken and served up? → COUPE WITHOUT ICE (preferred) or MARTINI WITHOUT ICE
-6. Does it contain Prosecco/Champagne as main ingredient? → WINE WITH ICE or FLUTE WITHOUT ICE
-7. Is it a tiki/tropical drink? → HURRICANE WITH ICE or special tiki mug
+1. Is it served with ice in the glass? → ROCKS or HIGHBALL
+2. Is it topped with soda/cola? → HIGHBALL
+3. Is it a sour? → ROCKS (always)
+4. Is it stirred and strong? → ROCKS (Negroni) or MARTINI (Manhattan)
+5. Is it shaken and served up? → COUPE (preferred) or MARTINI
+6. Does it contain Prosecco/Champagne as main ingredient? → WINE or FLUTE
+7. Is it a tiki/tropical drink? → HURRICANE or special tiki mug
 
 CRITICAL: The glass type affects the entire drinking experience - aroma, temperature, presentation. NEVER compromise on correct glassware.
 
@@ -169,22 +159,9 @@ Glass types in Polish:
 - hurricane glass = "szklanka hurricane"
 - nick & nora = "kieliszek nick & nora"
 
-Ice types in Polish:
-- cubed = "kostki"
-- crushed = "kruszony"
-- no ice = "bez lodu"
-
-CRUSHED ICE COCKTAILS:
-- Mojito, Caipirinha, Bramble, Mint Julep, Smash cocktails
-
 For ENGLISH (en):
 - Use standard English bartending terms
 - top/top up = "top up"
-
-Ice types in English:
-- cubed = "cubed"
-- crushed = "crushed"
-- no ice = "no ice"
 
 JSON FORMAT:
 {
@@ -208,112 +185,6 @@ JSON FORMAT:
   "ice": "[ice type in request language - NOT in ingredients]"
 }`;
 
-// DODANE: Helper function to check daily limits
-const checkDailyLimit = async (firebaseUid) => {
-  try {
-    if (!firebaseUid) {
-      console.log('⚠️ No firebaseUid provided, using default limits');
-      return { allowed: true, remaining: 3 };
-    }
-
-    const user = await User.findOne({ firebaseUid });
-    if (!user) {
-      console.log('⚠️ User not found, using default limits');
-      return { allowed: true, remaining: 3 };
-    }
-
-    // For now, always allow (implement limit logic later)
-    return { allowed: true, remaining: 3 };
-  } catch (error) {
-    console.error('Error checking limits:', error);
-    return { allowed: true, remaining: 3 }; // Allow by default if error
-  }
-};
-
-// DODANE: Helper function to update user stats - AKTUALIZUJE STATYSTYKI PRZEPISY
-const updateUserStats = async (firebaseUid) => {
-  try {
-    if (!firebaseUid) {
-      console.log('⚠️ No firebaseUid provided, skipping stats update');
-      return;
-    }
-
-    // KLUCZOWA ZMIANA: Zwiększ statystyki PRZEPISY (nie MyBar)
-    const result = await User.findOneAndUpdate(
-      { firebaseUid },
-      { 
-        $inc: { 
-          'stats.totalRecipes': 1,        // ← Statystyki "Przepisy"
-          'stats.dailyRecipes': 1         // ← Statystyki "Przepisy"
-        },
-        lastActive: new Date()
-      },
-      { new: true }
-    );
-    
-    console.log('✅ Updated Recipe Generator stats for user:', firebaseUid);
-    console.log('📊 New stats:', {
-      totalRecipes: result?.stats?.totalRecipes,
-      dailyRecipes: result?.stats?.dailyRecipes
-    });
-  } catch (error) {
-    console.error('Error updating recipe stats:', error);
-  }
-};
-
-// DODANE: Helper function to save recipe to user history
-const saveRecipeToHistory = async (firebaseUid, recipe) => {
-  try {
-    if (!firebaseUid) {
-      console.log('⚠️ No firebaseUid provided, skipping history save');
-      return;
-    }
-
-    const historyEntry = {
-      timestamp: new Date(),
-      name: recipe.name,
-      nameEn: recipe.nameEn,
-      category: recipe.category,
-      ingredients: recipe.ingredients || [],
-      instructions: recipe.instructions || [],
-      difficulty: recipe.difficulty || 'medium',
-      prepTime: recipe.prepTime || 5,
-      glassType: recipe.glassType,
-      ice: recipe.ice,
-      garnish: recipe.garnish || '',
-      alcoholContent: recipe.alcoholContent || 'medium',
-      servingTemp: recipe.servingTemp || '5',
-      method: recipe.method,
-      history: recipe.history || '',
-      funFact: recipe.funFact || recipe.history || '',
-      abv: recipe.abv || 25,
-      flavor: recipe.flavor || '',
-      occasion: recipe.occasion || '',
-      tags: recipe.tags || [],
-      tips: recipe.tips || [],
-      proTip: recipe.proTip || ''
-    };
-
-    await User.findOneAndUpdate(
-      { firebaseUid },
-      { 
-        $push: { 
-          recipeHistory: {
-            $each: [historyEntry],
-            $slice: -50 // Keep only last 50 recipes
-          }
-        },
-        lastActive: new Date()
-      },
-      { new: true }
-    );
-    
-    console.log('✅ Recipe saved to history:', recipe.name);
-  } catch (error) {
-    console.error('Error saving recipe to history:', error);
-  }
-};
-
 module.exports = async (req, res) => {
   console.log('🍹 Recipe generator endpoint called');
   
@@ -326,24 +197,14 @@ module.exports = async (req, res) => {
     const finalCocktailName = drinkName || cocktailName;
     const requestLanguage = language || 'en'; // Default to English if not specified
     
-    console.log(`🔍 Generating recipe for: ${finalCocktailName}`);
+    console.log(`📝 Generating recipe for: ${finalCocktailName}`);
     console.log(`🌍 Language requested: ${requestLanguage}`);
-    console.log(`👤 FirebaseUid: ${firebaseUid || 'not provided'}`);
+    console.log(`👤 FirebaseUid: ${firebaseUid}`);
     
     if (!finalCocktailName) {
       return res.status(400).json({ 
         success: false,
         error: 'Cocktail name is required' 
-      });
-    }
-
-    // DODANE: Check rate limit
-    const limitCheck = await checkDailyLimit(firebaseUid);
-    if (!limitCheck.allowed) {
-      return res.status(429).json({
-        success: false,
-        error: limitCheck.error || 'Daily limit reached',
-        remaining: 0
       });
     }
 
@@ -361,12 +222,9 @@ CRITICAL:
 - History in Polish
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "do pełna" NOT "0 ml"
-- SOUR cocktails MUST use "szklanka rocks" WITH ICE
-- HUGO MUST use "kieliszek do wina" WITH ICE
-- MANHATTAN, MARTINI, MARTINEZ, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
-- COUPE and MARTINI glasses = WITHOUT ICE ("bez lodu")
-- ROCKS, HIGHBALL, WINE glasses = WITH ICE ("kostki")
-- Follow GLASSWARE RULES and ICE RULES strictly
+- SOUR cocktails MUST use "szklanka rocks"
+- HUGO MUST use "kieliszek do wina"
+- Follow GLASSWARE RULES strictly
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use szklanica barmańska in instructions
@@ -383,12 +241,9 @@ CRITICAL:
 - USE CORRECT TRADITIONAL GLASS based on GLASSWARE RULES
 - NEVER include ice in ingredients - only in instructions
 - For soda/cola use "top up" NOT "0 ml"
-- SOUR cocktails MUST use "rocks glass" WITH ICE
-- HUGO MUST use "wine glass" WITH ICE
-- MANHATTAN, MARTINI, MARTINEZ, DAIQUIRI, MARGARITA MUST be served WITHOUT ICE
-- COUPE and MARTINI glasses = WITHOUT ICE ("no ice")
-- ROCKS, HIGHBALL, WINE glasses = WITH ICE ("cubed")
-- Follow GLASSWARE RULES and ICE RULES strictly
+- SOUR cocktails MUST use "rocks glass"
+- HUGO MUST use "wine glass"
+- Follow GLASSWARE RULES strictly
 - Match instructions to method:
   * If method is "shaken": use shaker in instructions
   * If method is "stirred": use mixing glass in instructions
@@ -397,23 +252,16 @@ CRITICAL:
 RETURN PURE JSON!`;
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: RECIPE_SYSTEM_PROMPT,
       messages: [
-        { 
-          role: "system", 
-          content: RECIPE_SYSTEM_PROMPT
-        },
-        { 
-          role: "user", 
-          content: userPrompt
-        }
+        { role: "user", content: userPrompt }
       ],
-      temperature: 0.1,
-      max_tokens: 1200
     });
 
-    const aiResponse = completion.choices[0].message.content;
+    const aiResponse = completion.content[0].text;
     console.log('🤖 AI Response received');
     
     // Parse response
@@ -464,32 +312,8 @@ RETURN PURE JSON!`;
         });
       }
       
-      // FIX SPECIFIC COCKTAILS AND GLASSWARE WITH ICE RULES
+      // FIX SPECIFIC COCKTAILS AND GLASSWARE
       const nameLower = finalCocktailName.toLowerCase();
-      
-      // CRITICAL FIX: MARTINEZ must be martini glass WITHOUT ice
-      if (nameLower.includes('martinez')) {
-        recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
-        
-        // Fix instructions for Martinez
-        if (recipe.instructions && requestLanguage === 'pl') {
-          recipe.instructions = recipe.instructions.map(inst => {
-            return inst
-              .replace(/szklanki rocks/g, 'kieliszka martini')
-              .replace(/szklanka rocks/g, 'kieliszek martini')
-              .replace(/z lodem/g, 'bez lodu')
-              .replace(/kostki lodu/g, 'bez lodu');
-          });
-        } else if (recipe.instructions) {
-          recipe.instructions = recipe.instructions.map(inst => {
-            return inst
-              .replace(/rocks glass/g, 'martini glass')
-              .replace(/with ice/g, 'without ice')
-              .replace(/cubed ice/g, 'no ice');
-          });
-        }
-      }
       
       // Fix ALL SOUR cocktails - always rocks glass with ice
       if (nameLower.includes('sour')) {
@@ -504,8 +328,6 @@ RETURN PURE JSON!`;
               .replace(/szklanka highball/g, 'szklanka rocks')
               .replace(/kieliszka coupe/g, 'szklanki rocks')
               .replace(/kieliszek coupe/g, 'szklanka rocks')
-              .replace(/kieliszka martini/g, 'szklanki rocks')
-              .replace(/kieliszek martini/g, 'szklanka rocks')
               .replace(/bez lodu/g, 'z lodem');
           });
         } else if (recipe.instructions) {
@@ -513,7 +335,6 @@ RETURN PURE JSON!`;
             return inst
               .replace(/highball glass/g, 'rocks glass')
               .replace(/coupe glass/g, 'rocks glass')
-              .replace(/martini glass/g, 'rocks glass')
               .replace(/without ice/g, 'with ice');
           });
         }
@@ -533,85 +354,43 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Fix classic cocktails glassware and ice - FORCE NO ICE for COUPE and MARTINI glasses
+      // Fix classic cocktails glassware
       if (nameLower.includes('daiquiri') || nameLower.includes('margarita') || 
           nameLower.includes('clover club') || nameLower.includes('white lady') ||
-          nameLower.includes('aviation') || nameLower.includes('sidecar') ||
-          nameLower.includes('cosmopolitan') || nameLower.includes('porn star martini') ||
-          nameLower.includes('corpse reviver') || nameLower.includes('blood and sand') ||
-          nameLower.includes('hanky panky')) {
+          nameLower.includes('aviation') || nameLower.includes('sidecar')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek coupe" : "coupe glass";
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
       }
       
-      if (nameLower.includes('martini') && !nameLower.includes('porn star')) {
+      if (nameLower.includes('martini') && !nameLower.includes('porn star') && !nameLower.includes('espresso')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
       }
       
       if (nameLower.includes('manhattan')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek martini" : "martini glass";
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
       }
       
       if (nameLower.includes('negroni') || nameLower.includes('boulevardier') || 
-          nameLower.includes('old fashioned') || nameLower.includes('sazerac') ||
-          nameLower.includes('mai tai')) {
+          nameLower.includes('old fashioned') || nameLower.includes('sazerac')) {
         recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
       }
       
       if (nameLower.includes('mojito') || nameLower.includes('cuba libre') || 
           nameLower.includes('tom collins') || nameLower.includes('paloma')) {
         recipe.glassType = requestLanguage === 'pl' ? "szklanka highball" : "highball glass";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
       }
       
       if (nameLower.includes('spritz') || nameLower.includes('hugo')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek do wina" : "wine glass";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
       }
       
       if (nameLower.includes('french 75') || nameLower.includes('mimosa') || 
           nameLower.includes('bellini')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek flute" : "flute glass";
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
       }
       
-      // CRITICAL FIX: Force correct ice based on glass type
-      const glassType = recipe.glassType ? recipe.glassType.toLowerCase() : '';
-      
-      if (glassType.includes('coupe') || glassType.includes('martini') || 
-          glassType.includes('flute') || glassType.includes('nick')) {
-        recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
-        
-        // Fix instructions to remove ice references
-        if (recipe.instructions) {
-          if (requestLanguage === 'pl') {
-            recipe.instructions = recipe.instructions.map(inst => {
-              return inst
-                .replace(/z lodem/g, 'bez lodu')
-                .replace(/kostki lodu/g, 'bez lodu')
-                .replace(/dodaj lód/g, 'nie dodawaj lodu')
-                .replace(/wlej do szklanki z lodem/g, 'wlej do kieliszka')
-                .replace(/napełnij lodem/g, 'nie dodawaj lodu');
-            });
-          } else {
-            recipe.instructions = recipe.instructions.map(inst => {
-              return inst
-                .replace(/with ice/g, 'without ice')
-                .replace(/add ice/g, 'do not add ice')
-                .replace(/fill with ice/g, 'serve without ice')
-                .replace(/over ice/g, 'without ice');
-            });
-          }
-        }
-      }
-      
-      // Fix HUGO - always wine glass WITH ICE
+      // Fix HUGO - always wine glass
       if (nameLower.includes('hugo')) {
         recipe.glassType = requestLanguage === 'pl' ? "kieliszek do wina" : "wine glass";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
         
         // Fix instructions for Hugo to mention wine glass
         if (recipe.instructions && requestLanguage === 'pl') {
@@ -636,36 +415,11 @@ RETURN PURE JSON!`;
         recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
       }
       
-      // Fix MOJITO - always highball glass with crushed ice
-      if (nameLower.includes('mojito')) {
-        recipe.glassType = requestLanguage === 'pl' ? "szklanka highball" : "highball glass";
-        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
-      }
-      
-      // Fix CAIPIRINHA - always rocks glass with crushed ice
-      if (nameLower.includes('caipirinha')) {
-        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
-        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
-      }
-      
-      // Fix MINT JULEP - always julep cup or rocks glass with crushed ice
-      if (nameLower.includes('mint julep') || nameLower.includes('julep')) {
-        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
-        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
-      }
-      
-      // Fix SMASH cocktails - always rocks glass with crushed ice
-      if (nameLower.includes('smash')) {
-        recipe.glassType = requestLanguage === 'pl' ? "szklanka rocks" : "rocks glass";
-        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
-      }
-      
       // Long Island Iced Tea special handling
       if (nameLower.includes('long island')) {
         // Ensure it's shaken
         recipe.method = 'shaken';
         recipe.glassType = requestLanguage === 'pl' ? "szklanka highball" : "highball glass";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
         
         // Ensure it has cola
         const hasCola = recipe.ingredients.some(i => 
@@ -692,10 +446,9 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Moscow Mule - copper mug preferred WITH ICE
+      // Moscow Mule - copper mug preferred
       if (nameLower.includes('moscow mule')) {
         recipe.glassType = requestLanguage === 'pl' ? "kubek miedziany" : "copper mug";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
         
         const hasLime = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lime') || 
@@ -711,10 +464,8 @@ RETURN PURE JSON!`;
         }
       }
       
-      // Mojito must have soda water and use crushed ice
+      // Mojito must have soda water
       if (nameLower.includes('mojito')) {
-        recipe.ice = requestLanguage === 'pl' ? "kruszony" : "crushed";
-        
         const hasSoda = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('soda') || 
           i.name.toLowerCase().includes('woda gazowana')
@@ -731,8 +482,6 @@ RETURN PURE JSON!`;
       
       // Cuba Libre must have lime juice
       if (nameLower.includes('cuba libre')) {
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
-        
         const hasLime = recipe.ingredients.some(i => 
           i.name.toLowerCase().includes('lime') || 
           i.name.toLowerCase().includes('limonk')
@@ -752,7 +501,6 @@ RETURN PURE JSON!`;
         recipe.ingredients[0].amount = "30";
         recipe.ingredients[1].amount = "30";
         recipe.ingredients[2].amount = "30";
-        recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
       }
       
       // Fix garnish for Long Island Iced Tea
@@ -770,17 +518,7 @@ RETURN PURE JSON!`;
       recipe.nameEn = recipe.nameEn || finalCocktailName;
       recipe.category = recipe.category || "classic";
       recipe.method = recipe.method || "stirred";
-      
-      // Set default ice if not set
-      if (!recipe.ice) {
-        // Check glass type to determine ice
-        const glassType = recipe.glassType ? recipe.glassType.toLowerCase() : '';
-        if (glassType.includes('coupe') || glassType.includes('martini') || glassType.includes('flute') || glassType.includes('nick')) {
-          recipe.ice = requestLanguage === 'pl' ? "bez lodu" : "no ice";
-        } else {
-          recipe.ice = requestLanguage === 'pl' ? "kostki" : "cubed";
-        }
-      }
+      recipe.ice = recipe.ice || (requestLanguage === 'pl' ? "kostki" : "cubed");
       
       // Ensure instructions are complete
       if (recipe.instructions && recipe.instructions.length > 0) {
@@ -822,14 +560,7 @@ RETURN PURE JSON!`;
     console.log('✅ Recipe created:', response.name);
     console.log('🌍 Language:', requestLanguage);
     console.log('🥃 Glass type:', response.glassType);
-    console.log('🧊 Ice:', response.ice);
     console.log('📊 Ingredients:', response.ingredients.map(i => `${i.name}: ${i.amount}${i.unit}`));
-    
-    // DODANE: Update user stats and save to history
-    if (firebaseUid) {
-      await updateUserStats(firebaseUid);
-      await saveRecipeToHistory(firebaseUid, response);
-    }
     
     res.status(200).json(response);
     

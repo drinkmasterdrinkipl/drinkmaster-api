@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 const User = require('../models/User');
 const Scan = require('../models/Scan');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // 🆕 Helper function to save scan to history
@@ -179,28 +179,34 @@ router.post('/', async (req, res) => {
       ? `Identify this alcohol bottle. ALL text must be in POLISH. Use Polish spirit types (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Include flavor characteristics, serving suggestions, and confidence level.`
       : `Identify this alcohol bottle. ALL text must be in ENGLISH. Use English spirit types. Include flavor characteristics, serving suggestions, and confidence level.`;
 
-    console.log('🤖 Calling OpenAI Vision API...');
+    console.log('🤖 Calling Claude Vision API...');
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    // Extract base64 from data URL if needed
+    let imageSource;
+    if (image.startsWith('data:')) {
+      const [header, base64Data] = image.split(',');
+      const mediaType = header.match(/data:([^;]+)/)[1];
+      imageSource = { type: 'base64', media_type: mediaType, data: base64Data };
+    } else {
+      imageSource = { type: 'url', url: image };
+    }
+
+    const response = await anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL_VISION || 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      system: SCANNER_SYSTEM_PROMPT,
       messages: [
-        { 
-          role: "system",
-          content: SCANNER_SYSTEM_PROMPT
-        },
-        { 
-          role: "user", 
+        {
+          role: "user",
           content: [
-            { type: "text", text: userPrompt },
-            { type: "image_url", image_url: { url: image } }
+            { type: "image", source: imageSource },
+            { type: "text", text: userPrompt }
           ]
         }
       ],
-      max_tokens: 1000,
-      temperature: 0.3
     });
 
-    const aiResponse = response.choices[0].message.content;
+    const aiResponse = response.content[0].text;
     console.log('🤖 AI Response received:', aiResponse.substring(0, 200) + '...');
     
     // Clean and parse response

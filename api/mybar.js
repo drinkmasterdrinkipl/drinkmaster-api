@@ -1,77 +1,109 @@
 const express = require('express');
 const router = express.Router();
-const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Comprehensive cocktail recipes database - ROZSZERZONA BAZA
+// Comprehensive cocktail recipes database
 const COCKTAIL_RECIPES = {
-  // WHISKY/WHISKEY COCKTAILS
   'Whiskey Sour': {
     required: ['whisky', 'lemon', 'sugar'],
     optional: ['egg white'],
     category: 'sour'
+  },
+  'Mudslide': {
+    required: ['vodka', 'kahlua', 'baileys'],
+    optional: ['cream'],
+    category: 'creamy'
+  },
+  'B-52': {
+    required: ['kahlua', 'baileys', 'grand marnier'],
+    optional: [],
+    category: 'shot'
+  },
+  'Brandy Alexander': {
+    required: ['cognac', 'creme de cacao', 'cream'],
+    optional: [],
+    category: 'creamy'
+  },
+  'French 75': {
+    required: ['gin', 'lemon', 'sugar', 'champagne'],
+    optional: [],
+    category: 'champagne'
+  },
+  'Mimosa': {
+    required: ['champagne', 'orange'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Bellini': {
+    required: ['prosecco', 'peach'],
+    optional: [],
+    category: 'brunch'
+  },
+  'Kamikaze': {
+    required: ['vodka', 'triple sec', 'lime'],
+    optional: [],
+    category: 'shot'
+  },
+  'Blue Lagoon': {
+    required: ['vodka', 'blue curacao', 'lemonade'],
+    optional: [],
+    category: 'tropical'
+  },
+  'Salty Dog': {
+    required: ['vodka', 'grapefruit'],
+    optional: ['salt'],
+    category: 'highball'
+  },
+  'Fuzzy Navel': {
+    required: ['vodka', 'peach schnapps', 'orange'],
+    optional: [],
+    category: 'sweet'
+  },
+  'Caipiroska': {
+    required: ['vodka', 'lime', 'sugar'],
+    optional: [],
+    category: 'classic'
+  },
+  'Sidecar': {
+    required: ['cognac', 'triple sec', 'lemon'],
+    optional: [],
+    category: 'classic'
   },
   'Whiskey Coke': {
     required: ['whisky', 'cola'],
     optional: ['lime'],
     category: 'highball'
   },
-  'Old Fashioned': {
-    required: ['whisky', 'sugar'],
-    optional: ['bitters', 'orange'],
-    category: 'classic'
-  },
-  'Manhattan': {
-    required: ['whisky', 'vermouth'],
-    optional: ['bitters', 'cherry'],
-    category: 'classic'
-  },
-  'Whiskey Honey': {
-    required: ['whisky', 'honey', 'lemon'],
-    optional: ['hot water'],
-    category: 'classic'
-  },
-  'Irish Coffee': {
-    required: ['whisky', 'coffee', 'sugar', 'cream'],
-    optional: [],
-    category: 'hot'
-  },
-  'Whiskey Ginger': {
-    required: ['whisky', 'ginger beer'],
+  'Vodka Sprite': {
+    required: ['vodka', 'sprite'],
     optional: ['lime'],
-    category: 'highball'
-  },
-  'Hot Toddy': {
-    required: ['whisky', 'honey', 'hot water'],
-    optional: ['lemon', 'cinnamon'],
-    category: 'hot'
-  },
-  'Whiskey Smash': {
-    required: ['whisky', 'lemon', 'sugar', 'mint'],
-    optional: [],
-    category: 'modern'
-  },
-  'Boulevardier': {
-    required: ['whisky', 'campari', 'vermouth'],
-    optional: ['orange'],
-    category: 'classic'
-  },
-
-  // GIN COCKTAILS
-  'Gin & Tonic': {
-    required: ['gin', 'tonic'],
-    optional: ['lime', 'lemon'],
     category: 'highball'
   },
   'Gin Lemonade': {
     required: ['gin', 'lemonade'],
     optional: ['lemon'],
     category: 'highball'
+  },
+  'Baileys Coffee': {
+    required: ['baileys', 'coffee'],
+    optional: ['cream'],
+    category: 'hot'
+  },
+  'Irish Coffee': {
+    required: ['whisky', 'coffee', 'sugar', 'cream'],
+    optional: [],
+    category: 'hot'
+  },
+  'Jager Bomb': {
+    required: ['jagermeister', 'energy drink'],
+    optional: [],
+    category: 'shot'
   },
   'Gin Sour': {
     required: ['gin', 'lemon', 'sugar'],
@@ -83,14 +115,54 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'collins'
   },
-  'Gin Fizz': {
-    required: ['gin', 'lemon', 'sugar', 'soda water'],
-    optional: ['egg white'],
-    category: 'fizz'
+  'Gin & Tonic': {
+    required: ['gin', 'tonic'],
+    optional: ['lime', 'lemon'],
+    category: 'highball'
+  },
+  'Cuba Libre': {
+    required: ['rum', 'cola', 'lime'],
+    optional: [],
+    category: 'highball'
+  },
+  'Rum & Coke': {
+    required: ['rum', 'cola'],
+    optional: ['lime'],
+    category: 'highball'
+  },
+  'Vodka Red Bull': {
+    required: ['vodka', 'energy drink'],
+    optional: [],
+    category: 'modern'
+  },
+  'Jägerbomb': {
+    required: ['jagermeister', 'energy drink'],
+    optional: [],
+    category: 'shot'
+  },
+  'Mojito': {
+    required: ['rum', 'lime', 'sugar', 'mint', 'soda water'],
+    optional: [],
+    category: 'highball'
+  },
+  'Margarita': {
+    required: ['tequila', 'triple sec', 'lime'],
+    optional: ['salt'],
+    category: 'classic'
   },
   'Negroni': {
     required: ['gin', 'campari', 'vermouth'],
     optional: ['orange'],
+    category: 'classic'
+  },
+  'White Russian': {
+    required: ['vodka', 'kahlua', 'cream'],
+    optional: [],
+    category: 'classic'
+  },
+  'Black Russian': {
+    required: ['vodka', 'kahlua'],
+    optional: [],
     category: 'classic'
   },
   'Gin Basil Smash': {
@@ -98,40 +170,53 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'modern'
   },
-  'French 75': {
-    required: ['gin', 'lemon', 'sugar', 'champagne'],
-    optional: [],
-    category: 'champagne'
+  'Whiskey Honey': {
+    required: ['whisky', 'honey', 'lemon'],
+    optional: ['hot water'],
+    category: 'classic'
   },
-  'Gin & Juice': {
-    required: ['gin', 'orange'],
-    optional: ['cranberry'],
-    category: 'highball'
+  'Old Fashioned': {
+    required: ['whisky', 'sugar'],
+    optional: ['bitters', 'orange'],
+    category: 'classic'
   },
-  'Gin Rickey': {
-    required: ['gin', 'lime', 'soda water'],
-    optional: [],
-    category: 'highball'
+  'Manhattan': {
+    required: ['whisky', 'vermouth'],
+    optional: ['bitters', 'cherry'],
+    category: 'classic'
   },
-  'Aviation': {
-    required: ['gin', 'lemon', 'maraschino', 'creme de violette'],
+  'Daiquiri': {
+    required: ['rum', 'lime', 'sugar'],
     optional: [],
     category: 'classic'
   },
-
-  // VODKA COCKTAILS
-  'Vodka Tonic': {
-    required: ['vodka', 'tonic'],
-    optional: ['lime'],
-    category: 'highball'
+  'Cosmopolitan': {
+    required: ['vodka', 'triple sec', 'cranberry', 'lime'],
+    optional: [],
+    category: 'modern'
   },
-  'Vodka Sprite': {
-    required: ['vodka', 'sprite'],
-    optional: ['lime'],
-    category: 'highball'
+  'Moscow Mule': {
+    required: ['vodka', 'lime', 'ginger beer'],
+    optional: [],
+    category: 'classic'
   },
-  'Vodka Red Bull': {
-    required: ['vodka', 'energy drink'],
+  'Dark & Stormy': {
+    required: ['rum', 'ginger beer', 'lime'],
+    optional: [],
+    category: 'classic'
+  },
+  'Long Island Iced Tea': {
+    required: ['vodka', 'gin', 'rum', 'tequila', 'triple sec', 'lemon', 'cola'],
+    optional: [],
+    category: 'modern'
+  },
+  'Aperol Spritz': {
+    required: ['aperol', 'prosecco', 'soda water'],
+    optional: ['orange'],
+    category: 'aperitif'
+  },
+  'Espresso Martini': {
+    required: ['vodka', 'kahlua', 'espresso'],
     optional: [],
     category: 'modern'
   },
@@ -150,117 +235,15 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'highball'
   },
-  'Moscow Mule': {
-    required: ['vodka', 'lime', 'ginger beer'],
-    optional: [],
-    category: 'classic'
-  },
-  'White Russian': {
-    required: ['vodka', 'kahlua', 'cream'],
-    optional: [],
-    category: 'classic'
-  },
-  'Black Russian': {
-    required: ['vodka', 'kahlua'],
-    optional: [],
-    category: 'classic'
-  },
-  'Cosmopolitan': {
-    required: ['vodka', 'triple sec', 'cranberry', 'lime'],
-    optional: [],
-    category: 'modern'
-  },
-  'Espresso Martini': {
-    required: ['vodka', 'kahlua', 'espresso'],
-    optional: [],
-    category: 'modern'
-  },
-  'Bloody Mary': {
-    required: ['vodka', 'tomato juice', 'lemon'],
-    optional: ['worcestershire', 'tabasco', 'celery'],
-    category: 'brunch'
-  },
-  'Salty Dog': {
-    required: ['vodka', 'grapefruit'],
-    optional: ['salt'],
-    category: 'highball'
-  },
-  'Sea Breeze': {
-    required: ['vodka', 'cranberry', 'grapefruit'],
+  'Tequila Sunrise': {
+    required: ['tequila', 'orange', 'grenadine'],
     optional: [],
     category: 'highball'
-  },
-  'Bay Breeze': {
-    required: ['vodka', 'cranberry', 'pineapple'],
-    optional: [],
-    category: 'highball'
-  },
-  'Madras': {
-    required: ['vodka', 'cranberry', 'orange'],
-    optional: [],
-    category: 'highball'
-  },
-  'Cape Codder': {
-    required: ['vodka', 'cranberry'],
-    optional: ['lime'],
-    category: 'highball'
-  },
-  'Greyhound': {
-    required: ['vodka', 'grapefruit'],
-    optional: [],
-    category: 'highball'
-  },
-  'Fuzzy Navel': {
-    required: ['vodka', 'peach schnapps', 'orange'],
-    optional: [],
-    category: 'sweet'
   },
   'Sex on the Beach': {
     required: ['vodka', 'peach schnapps', 'orange', 'cranberry'],
     optional: [],
     category: 'highball'
-  },
-  'Blue Lagoon': {
-    required: ['vodka', 'blue curacao', 'lemonade'],
-    optional: [],
-    category: 'tropical'
-  },
-  'Kamikaze': {
-    required: ['vodka', 'triple sec', 'lime'],
-    optional: [],
-    category: 'shot'
-  },
-  'Caipiroska': {
-    required: ['vodka', 'lime', 'sugar'],
-    optional: [],
-    category: 'classic'
-  },
-
-  // RUM COCKTAILS
-  'Rum & Coke': {
-    required: ['rum', 'cola'],
-    optional: ['lime'],
-    category: 'highball'
-  },
-  'Cuba Libre': {
-    required: ['rum', 'cola', 'lime'],
-    optional: [],
-    category: 'highball'
-  },
-  'Mojito': {
-    required: ['rum', 'lime', 'sugar', 'mint', 'soda water'],
-    optional: [],
-    category: 'highball'
-  },
-  'Daiquiri': {
-    required: ['rum', 'lime', 'sugar'],
-    optional: [],
-    category: 'classic'
-  },
-  'Dark & Stormy': {
-    required: ['rum', 'ginger beer', 'lime'],
-    optional: [],
-    category: 'classic'
   },
   'Piña Colada': {
     required: ['rum', 'coconut cream', 'pineapple'],
@@ -272,97 +255,19 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'tiki'
   },
-  'Rum Punch': {
-    required: ['rum', 'orange', 'pineapple', 'lime', 'sugar'],
-    optional: ['grenadine'],
-    category: 'tropical'
-  },
-  'Hurricane': {
-    required: ['rum', 'lemon', 'passion fruit syrup'],
-    optional: [],
-    category: 'tropical'
-  },
-  'Painkiller': {
-    required: ['rum', 'orange', 'pineapple', 'coconut cream'],
-    optional: [],
-    category: 'tropical'
-  },
-
-  // TEQUILA COCKTAILS
-  'Margarita': {
-    required: ['tequila', 'triple sec', 'lime'],
-    optional: ['salt'],
-    category: 'classic'
-  },
-  'Tequila Sunrise': {
-    required: ['tequila', 'orange', 'grenadine'],
-    optional: [],
-    category: 'highball'
+  'Gin Fizz': {
+    required: ['gin', 'lemon', 'sugar', 'soda water'],
+    optional: ['egg white'],
+    category: 'fizz'
   },
   'Paloma': {
     required: ['tequila', 'grapefruit', 'lime', 'soda water'],
     optional: ['salt'],
     category: 'highball'
   },
-  'Tequila Sour': {
-    required: ['tequila', 'lemon', 'sugar'],
-    optional: ['egg white'],
-    category: 'sour'
-  },
-  'Mexican Mule': {
-    required: ['tequila', 'lime', 'ginger beer'],
-    optional: [],
-    category: 'modern'
-  },
-
-  // BRANDY/COGNAC COCKTAILS
-  'Brandy Alexander': {
-    required: ['cognac', 'creme de cacao', 'cream'],
-    optional: [],
-    category: 'creamy'
-  },
-  'Sidecar': {
-    required: ['cognac', 'triple sec', 'lemon'],
-    optional: [],
-    category: 'classic'
-  },
-  'Brandy Sour': {
-    required: ['cognac', 'lemon', 'sugar'],
-    optional: ['egg white'],
-    category: 'sour'
-  },
-
-  // LIQUEUR-BASED COCKTAILS
-  'Mudslide': {
-    required: ['vodka', 'kahlua', 'baileys'],
-    optional: ['cream'],
-    category: 'creamy'
-  },
-  'B-52': {
-    required: ['kahlua', 'baileys', 'grand marnier'],
-    optional: [],
-    category: 'shot'
-  },
-  'Baileys Coffee': {
-    required: ['baileys', 'coffee'],
-    optional: ['cream'],
-    category: 'hot'
-  },
-  'Amaretto Sour': {
-    required: ['amaretto', 'lemon', 'sugar'],
-    optional: ['egg white'],
-    category: 'sour'
-  },
-
-  // CHAMPAGNE/PROSECCO COCKTAILS
-  'Mimosa': {
-    required: ['champagne', 'orange'],
-    optional: [],
-    category: 'brunch'
-  },
-  'Bellini': {
-    required: ['prosecco', 'peach'],
-    optional: [],
+  'Bloody Mary': {
+    required: ['vodka', 'tomato juice', 'lemon'],
+    optional: ['worcestershire', 'tabasco', 'celery'],
     category: 'brunch'
   },
   'Kir Royale': {
@@ -370,161 +275,31 @@ const COCKTAIL_RECIPES = {
     optional: [],
     category: 'aperitif'
   },
-  'Aperol Spritz': {
-    required: ['aperol', 'prosecco', 'soda water'],
-    optional: ['orange'],
-    category: 'aperitif'
-  },
-
-  // SPECIALTY COCKTAILS
-  'Long Island Iced Tea': {
-    required: ['vodka', 'gin', 'rum', 'tequila', 'triple sec', 'lemon', 'cola'],
-    optional: [],
-    category: 'modern'
-  },
-  'Jager Bomb': {
-    required: ['jagermeister', 'energy drink'],
-    optional: [],
-    category: 'shot'
-  },
-  'Jägerbomb': {
-    required: ['jagermeister', 'energy drink'],
-    optional: [],
-    category: 'shot'
-  },
-
-  // CACHACA COCKTAILS
   'Caipirinha': {
     required: ['cachaca', 'lime', 'sugar'],
     optional: [],
     category: 'classic'
   },
-
-  // DODANE KOKTAJLE DLA POLSKICH ALKOHOLI
-  'Cytrynówka Shot': {
-    required: ['lemon vodka'],
-    optional: [],
-    category: 'shot'
+  'Pisco Sour': {
+    required: ['pisco', 'lime', 'sugar'],
+    optional: ['egg white', 'bitters'],
+    category: 'sour'
   },
-  'Cytrynówka z Tonikiem': {
-    required: ['lemon vodka', 'tonic'],
-    optional: ['lemon'],
+  'Vodka Tonic': {
+    required: ['vodka', 'tonic'],
+    optional: ['lime'],
     category: 'highball'
   },
-  'Wiśniówka Shot': {
-    required: ['cherry vodka'],
-    optional: [],
-    category: 'shot'
-  },
-  'Krupnik z Kawą': {
-    required: ['honey liqueur', 'coffee'],
-    optional: ['cream'],
-    category: 'hot'
-  },
-  'Krupnik Hot': {
-    required: ['honey liqueur', 'hot water'],
-    optional: ['lemon', 'cinnamon'],
-    category: 'hot'
-  },
-  'Żołądkowa z Cytryną': {
-    required: ['herbal liqueur', 'lemon'],
-    optional: ['sugar'],
-    category: 'digestif'
-  },
-  'Bimber Shot': {
-    required: ['moonshine'],
-    optional: [],
-    category: 'shot'
-  },
-  'Bimber z Miodem': {
-    required: ['moonshine', 'honey'],
-    optional: ['lemon'],
-    category: 'traditional'
-  },
-  'Śliwowica Traditionalna': {
-    required: ['plum brandy'],
-    optional: [],
-    category: 'digestif'
-  },
-  'Miodówka z Cytryną': {
-    required: ['honey vodka', 'lemon'],
-    optional: ['hot water'],
-    category: 'traditional'
-  },
-  'Nalewka Babuni': {
-    required: ['fruit liqueur'],
-    optional: [],
-    category: 'digestif'
-  },
-  'Żubrówka Apple': {
-    required: ['vodka', 'apple juice'],
-    optional: [],
-    category: 'modern'
-  },
-
-  // DODANE KOKTAJLE DLA POJEDYNCZYCH ALKOHOLI
-  'Vodka Shot': {
-    required: ['vodka'],
-    optional: [],
-    category: 'shot'
-  },
-  'Whisky Neat': {
-    required: ['whisky'],
-    optional: [],
-    category: 'neat'
-  },
-  'Rum Shot': {
-    required: ['rum'],
-    optional: [],
-    category: 'shot'
-  },
-  'Gin Neat': {
-    required: ['gin'],
-    optional: [],
-    category: 'neat'
-  },
-  'Tequila Shot': {
-    required: ['tequila'],
-    optional: ['salt', 'lime'],
-    category: 'shot'
-  },
-  'Cognac Neat': {
-    required: ['cognac'],
-    optional: [],
-    category: 'neat'
-  },
-
-  // DODANE PROSTE MIXY
-  'Vodka Water': {
-    required: ['vodka', 'water'],
-    optional: ['lemon'],
-    category: 'simple'
-  },
-  'Whisky Water': {
-    required: ['whisky', 'water'],
-    optional: [],
-    category: 'simple'
-  },
-  'Rum Water': {
-    required: ['rum', 'water'],
-    optional: ['lime'],
-    category: 'simple'
-  },
-  'Vodka Lime': {
-    required: ['vodka', 'lime'],
-    optional: [],
-    category: 'simple'
-  },
-  'Whisky Lemon': {
-    required: ['whisky', 'lemon'],
-    optional: [],
-    category: 'simple'
-  },
+  'Amaretto Sour': {
+    required: ['amaretto', 'lemon', 'sugar'],
+    optional: ['egg white'],
+    category: 'sour'
+  }
 };
 
 const MYBAR_SYSTEM_PROMPT = `You are a world-class bartender helping users make cocktails with available ingredients. You have deep knowledge of classic cocktails, their authentic recipes, AND brand names.
 
-IMPORTANT: Always check the comprehensive cocktail database!
+IMPORTANT: Always check for comprehensive cocktail database!
 Use their recipes for accuracy and discover creative combinations based on user's ingredients.
 
 CRITICAL RULES:
@@ -541,90 +316,74 @@ CRITICAL RULES:
 7. NEVER suggest optional ingredients as purchases (bitters, egg white, garnishes)
 8. Show ALL cocktails that can be made (no limit)
 9. Include COMPLETE recipe details
-10. Be creative and show more options when possible
+10. Be creative
 
 BRAND RECOGNITION - BE SMART:
 Common brands and what they are:
-- Jack Daniels / Jack Daniel's = whisky
-- Jim Beam = whisky
+- Jack Daniels / Jack Daniel's = whiskey
+- Jim Beam = whiskey
 - Johnnie Walker = whisky (scotch)
-- Jameson = whisky (irish)
-- Makers Mark = whisky
-- Crown Royal = whisky
-- Chivas = whisky
-- Ballantines = whisky
+- Jameson = whiskey (irish)
 - Bombay / Bombay Sapphire = gin
 - Tanqueray = gin
 - Beefeater = gin
 - Gordon's = gin
-- Hendricks = gin
 - Absolut = vodka
 - Grey Goose = vodka
 - Smirnoff = vodka
 - Stolichnaya = vodka
-- Belvedere = vodka
-- Finlandia = vodka
-- Wyborowa = vodka
 - Bacardi = rum
 - Captain Morgan = rum
 - Havana Club = rum
-- Malibu = coconut rum
-- Kraken = rum
 - Jose Cuervo = tequila
 - Patron = tequila
 - Olmeca = tequila
-- Sauza = tequila
-- Hennessy = cognac
-- Remy Martin = cognac
-- Martell = cognac
-- Schweppes = tonic water
+- Schweppes = tonic water (unless specified otherwise)
 - Kinley = tonic water
 - Coca-Cola / Coke = cola
 - Pepsi = cola
-- Sprite / 7UP = lemon-lime soda
-- Canada Dry = ginger beer
-- Baileys = Irish cream (can replace cream)
+- Sprite / 7UP = lemon-lime soda (NOT soda water)
+- Canada Dry = ginger ale
+- Baileys = Irish cream (can replace cream in some cocktails)
 - Kahlua = coffee liqueur
 - Campari = bitter liqueur
 - Aperol = aperitif
 - Martini / Cinzano = vermouth
 - Cointreau = triple sec (premium)
-- Grand Marnier = orange liqueur
-- Jägermeister = herbal liqueur
+- Grand Marnier = orange liqueur (can replace triple sec)
 
 SOFT DRINKS & ENERGY DRINKS:
-- Red Bull = energy drink
+- Red Bull = energy drink (can use for vodka red bull)
 - Monster = energy drink
 - Rockstar = energy drink
 - Tiger = energy drink
 - Burn = energy drink
-- Fanta = orange soda (can replace orange juice)
+- Fanta = orange soda (can replace orange juice in some cocktails)
 - Mirinda = orange soda
 - Mountain Dew = citrus soda
 - Dr Pepper = cherry/cola drink
-- Ginger Beer = spicy ginger mixer
-- Tonic Water = quinine mixer
+- Ginger Beer = spicy ginger mixer (for Moscow Mule, Dark & Stormy)
+- Tonic Water = quinine mixer (for Gin & Tonic, Vodka Tonic)
 - Soda Water / Club Soda = carbonated water
 - Sparkling Water = carbonated water
+- Juice brands: Tymbark, Hortex, Cappy, Tropicana = various juices
 
 INGREDIENT MAPPING:
-- "whisky" or "whiskey" or any whiskey brand → has whisky
+- "whisky" or any whiskey brand → has whiskey
 - "gin" or any gin brand → has gin
 - "vodka" or "wódka" or any vodka brand → has vodka
 - "rum" or any rum brand → has rum
-- "tequila" or any tequila brand → has tequila
-- "cognac" or "brandy" or any cognac brand → has cognac
 - "tonic" or "tonik" or "Kinley" → has tonic water
 - "wermut" or "vermouth" or "Martini" or "Cinzano" → has vermouth
 - "campari" → has Campari
 - "baileys" → has Irish cream (can work as cream)
-- "kahlua" or "kahlúa" → has coffee liqueur
+- "kahlua" or "kahluá" → has coffee liqueur
 - "triple sec" or "cointreau" → has triple sec
 - "miód" or "honey" → has honey
 - "cytryna" or "lemon" → has lemon juice
 - "limonka" or "lime" → has lime juice
 - "cukier" or "sugar" → has simple syrup
-- "miÄ™ta" or "mint" → has fresh mint
+- "mięta" or "mint" → has fresh mint
 - "bazylia" or "basil" → has fresh basil
 - "mleko" or "milk" or "śmietana" or "cream" → has cream/milk
 - "woda gazowana" or "soda water" → has soda water
@@ -633,7 +392,7 @@ INGREDIENT MAPPING:
 - "fanta" or "mirinda" → has orange soda (can work as orange juice)
 - "sprite" or "7up" → has lemon-lime soda
 - "ginger beer" or "canada dry" → has ginger beer
-- "pomarańcza" or "orange" → has orange juice
+- "pomarańcza" or "orange" or "sok pomarańczowy" → has orange juice
 - "żurawina" or "cranberry" → has cranberry juice
 - "grejpfrut" or "grapefruit" → has grapefruit juice
 
@@ -645,7 +404,7 @@ SHOPPING LOGIC - BE EXTREMELY CAREFUL:
 1. NEVER suggest an ingredient if user is missing multiple other ingredients for that cocktail
 2. Only suggest ingredients that unlock cocktails with CURRENT ingredients
 3. Check the COMPLETE recipe before any suggestion
-4. Maximum 3 shopping suggestions (increased from 2)
+4. Maximum 2 shopping suggestions
 5. NEVER suggest optional ingredients (bitters, egg white, salt rim, garnishes)
 
 Example checks:
@@ -709,14 +468,60 @@ REMEMBER:
 - Check EVERY ingredient requirement
 - NEVER suggest ingredients that won't unlock anything
 - Be honest about what can be made
-- Maximum 3 shopping suggestions
-- Show MORE cocktail options when possible`;
+- Maximum 2 shopping suggestions`;
 
-// Helper function to normalize ingredient names - POPRAWIONA
+// Helper function to normalize ingredient names
 function normalizeIngredient(ing) {
   const lower = ing.toLowerCase().trim();
-  
-  // DODANE POLSKIE ALKOHOLE I REGIONALNE MARKI
+
+  // Polish compound phrases — check FIRST (longest match wins)
+  const polishPhrases = {
+    'sok z cytryny': 'lemon',
+    'sok cytrynowy': 'lemon',
+    'świeży sok z cytryny': 'lemon',
+    'sok z limonki': 'lime',
+    'sok limonkowy': 'lime',
+    'świeży sok z limonki': 'lime',
+    'sok pomarańczowy': 'orange',
+    'sok z pomarańczy': 'orange',
+    'sok żurawinowy': 'cranberry',
+    'sok z żurawiny': 'cranberry',
+    'sok grejpfrutowy': 'grapefruit',
+    'sok z grejpfruta': 'grapefruit',
+    'sok ananasowy': 'pineapple',
+    'sok z ananasa': 'pineapple',
+    'sok pomidorowy': 'tomato juice',
+    'sok z pomidorów': 'tomato juice',
+    'syrop cukrowy': 'sugar',
+    'syrop z cukru': 'sugar',
+    'cukier puder': 'sugar',
+    'cukier trzcinowy': 'sugar',
+    'śmietanka kremówka': 'cream',
+    'śmietana kremówka': 'cream',
+    'śmietana 30%': 'cream',
+    'śmietana 36%': 'cream',
+    'bita śmietana': 'cream',
+    'woda gazowana': 'soda water',
+    'woda sodowa': 'soda water',
+    'woda mineralna gazowana': 'soda water',
+    'piwo imbirowe': 'ginger beer',
+    'miód pszczeli': 'honey',
+    'kawa espresso': 'espresso',
+    'podwójne espresso': 'espresso',
+    'ekstrakt kawowy': 'espresso',
+    'likier kawowy': 'kahlua',
+    'likier pomarańczowy': 'triple sec',
+    'likieru pomarańczowego': 'triple sec',
+    'blue curacao': 'blue curacao',
+    'kokosowy krem': 'coconut cream',
+    'krem kokosowy': 'coconut cream',
+    'mleko kokosowe': 'coconut cream',
+  };
+  for (const [phrase, mapped] of Object.entries(polishPhrases)) {
+    if (lower.includes(phrase)) return mapped;
+  }
+
+  // Brand to ingredient mapping
   const brandMap = {
     // Whiskey brands
     'jack daniels': 'whisky',
@@ -725,28 +530,9 @@ function normalizeIngredient(ing) {
     'johnnie walker': 'whisky',
     'jameson': 'whisky',
     'makers mark': 'whisky',
-    'maker\'s mark': 'whisky',
     'crown royal': 'whisky',
     'chivas': 'whisky',
-    'chivas regal': 'whisky',
     'ballantines': 'whisky',
-    'glenfiddich': 'whisky',
-    'glenlivet': 'whisky',
-    'macallan': 'whisky',
-    'laphroaig': 'whisky',
-    'lagavulin': 'whisky',
-    'ardbeg': 'whisky',
-    'highland park': 'whisky',
-    'tullamore dew': 'whisky',
-    'bushmills': 'whisky',
-    'redbreast': 'whisky',
-    'green spot': 'whisky',
-    'four roses': 'whisky',
-    'wild turkey': 'whisky',
-    'buffalo trace': 'whisky',
-    'woodford reserve': 'whisky',
-    'angel\'s envy': 'whisky',
-    'angels envy': 'whisky',
     
     // Gin brands
     'bombay': 'gin',
@@ -757,75 +543,15 @@ function normalizeIngredient(ing) {
     'gordons': 'gin',
     'hendricks': 'gin',
     'hendrick\'s': 'gin',
-    'the botanist': 'gin',
-    'botanist': 'gin',
-    'sipsmith': 'gin',
-    'monkey 47': 'gin',
-    'plymouth': 'gin',
-    'aviation': 'gin',
-    'roku': 'gin',
-    'malfy': 'gin',
-    'citadelle': 'gin',
-    'broker\'s': 'gin',
-    'brokers': 'gin',
     
-    // Vodka brands - DODANE POLSKIE
+    // Vodka brands
     'absolut': 'vodka',
     'grey goose': 'vodka',
     'smirnoff': 'vodka',
     'stolichnaya': 'vodka',
-    'stoli': 'vodka',
     'belvedere': 'vodka',
     'finlandia': 'vodka',
     'wyborowa': 'vodka',
-    'żubrówka': 'vodka', // Polska żubrówka
-    'zubrowka': 'vodka',
-    'soplica': 'vodka', // Polska marka
-    'luksusowa': 'vodka', // Polska wódka
-    'chopin': 'vodka',
-    'ultimat': 'vodka',
-    'tito\'s': 'vodka',
-    'titos': 'vodka',
-    'ketel one': 'vodka',
-    'kettel one': 'vodka',
-    'russian standard': 'vodka',
-    'skyy': 'vodka',
-    'ciroc': 'vodka',
-    'crystal head': 'vodka',
-    'beluga': 'vodka',
-    'potocki': 'vodka', // Polska marka
-    'ostoya': 'vodka', // Polska marka
-    'pan tadeusz': 'vodka', // Polska marka
-    
-    // POLSKIE NALEWKI I WÓDKI SMAKOWE
-    'cytrynówka': 'lemon vodka',
-    'wiśniówka': 'cherry vodka',
-    'śliwowica': 'plum brandy',
-    'sliwowica': 'plum brandy',
-    'miodówka': 'honey vodka',
-    'miodowka': 'honey vodka',
-    'krupnik': 'honey liqueur',
-    'goldwasser': 'herbal liqueur',
-    'żołądkowa gorzka': 'herbal liqueur',
-    'zoladkowa gorzka': 'herbal liqueur',
-    'żołądkowa': 'herbal liqueur',
-    'zoladkowa': 'herbal liqueur',
-    'bimber': 'moonshine', // Polski bimber
-    'samogon': 'moonshine',
-    'nalewka': 'fruit liqueur',
-    'nalewka babuni': 'fruit liqueur',
-    'dereniówka': 'dogwood liqueur',
-    'pigwówka': 'quince liqueur',
-    'wiśniowa': 'cherry liqueur',
-    'wiśniówka': 'cherry liqueur',
-    'wisniowka': 'cherry liqueur',
-    'wisniowa': 'cherry liqueur',
-    'malinówka': 'raspberry liqueur',
-    'malinowka': 'raspberry liqueur',
-    'jeżynówka': 'blackberry liqueur',
-    'jezzynowka': 'blackberry liqueur',
-    'orzechówka': 'walnut liqueur',
-    'orzechowka': 'walnut liqueur',
     
     // Rum brands
     'bacardi': 'rum',
@@ -833,53 +559,16 @@ function normalizeIngredient(ing) {
     'havana club': 'rum',
     'malibu': 'coconut rum',
     'kraken': 'rum',
-    'mount gay': 'rum',
-    'appleton': 'rum',
-    'plantation': 'rum',
-    'diplomatico': 'rum',
-    'zacapa': 'rum',
-    'el dorado': 'rum',
-    'flor de cana': 'rum',
-    'ron barcelo': 'rum',
-    'brugal': 'rum',
-    'angostura': 'rum',
-    'myers': 'rum',
-    'sailor jerry': 'rum',
-    'goslings': 'rum',
-    'bumbu': 'rum',
     
     // Tequila brands
     'jose cuervo': 'tequila',
     'patron': 'tequila',
     'olmeca': 'tequila',
     'sauza': 'tequila',
-    'don julio': 'tequila',
-    'herradura': 'tequila',
-    'cazadores': 'tequila',
-    'espolon': 'tequila',
-    'clase azul': 'tequila',
-    'casamigos': 'tequila',
-    'avion': 'tequila',
-    'fortaleza': 'tequila',
-    'el tesoro': 'tequila',
-    
-    // Cognac/Brandy brands
-    'hennessy': 'cognac',
-    'remy martin': 'cognac',
-    'rémy martin': 'cognac',
-    'martell': 'cognac',
-    'courvoisier': 'cognac',
-    'hine': 'cognac',
-    'camus': 'cognac',
-    'otard': 'cognac',
-    'delamain': 'cognac',
-    'frapin': 'cognac',
     
     // Mixers
     'kinley': 'tonic',
     'schweppes': 'tonic',
-    'fever tree': 'tonic',
-    'fever-tree': 'tonic',
     'coca-cola': 'cola',
     'coca cola': 'cola',
     'coke': 'cola',
@@ -892,8 +581,6 @@ function normalizeIngredient(ing) {
     'mirinda': 'orange',
     'mountain dew': 'citrus soda',
     'dr pepper': 'cola',
-    'schweppes ginger ale': 'ginger beer',
-    'bundaberg': 'ginger beer',
     
     // Energy drinks
     'red bull': 'energy drink',
@@ -902,79 +589,35 @@ function normalizeIngredient(ing) {
     'rockstar': 'energy drink',
     'tiger': 'energy drink',
     'burn': 'energy drink',
-    'relentless': 'energy drink',
-    'rockstar energy': 'energy drink',
-    'monster energy': 'energy drink',
     
     // Liqueurs
     'baileys': 'cream',
-    'bailey\'s': 'cream',
     'kahlua': 'kahlua',
-    'kahlúa': 'kahlua',
+    'kahluá': 'kahlua',
     'cointreau': 'triple sec',
     'grand marnier': 'triple sec',
     'martini': 'vermouth',
     'cinzano': 'vermouth',
-    'noilly prat': 'vermouth',
-    'dolin': 'vermouth',
-    'cocchi': 'vermouth',
     'jägermeister': 'jagermeister',
     'jagermeister': 'jagermeister',
-    'jäger': 'jagermeister',
-    'jager': 'jagermeister',
-    'amaretto disaronno': 'amaretto',
-    'disaronno': 'amaretto',
-    'frangelico': 'hazelnut liqueur',
-    'chambord': 'raspberry liqueur',
-    'st germain': 'elderflower',
-    'aperol': 'aperol',
-    'campari': 'campari',
-    'cynar': 'artichoke liqueur',
-    'chartreuse': 'herbal liqueur',
-    'benedictine': 'herbal liqueur',
-    'drambuie': 'honey liqueur',
-    'galliano': 'vanilla liqueur',
-    'sambuca': 'anise liqueur',
-    'ouzo': 'anise liqueur',
-    'pastis': 'anise liqueur',
-    'absinthe': 'absinthe',
-    'midori': 'melon liqueur',
-    'blue curacao': 'blue curacao',
-    'curacao': 'orange liqueur',
-    'triple sec': 'triple sec',
-    'limoncello': 'lemon liqueur',
     
-    // Polish typos and variations
-    'whisky': 'whisky',
-    'whiskey': 'whisky',
+    // Polish typos
     'łiski': 'whisky',
     'wisky': 'whisky',
     'wiskey': 'whisky',
     'dzin': 'gin',
     'dżin': 'gin',
-    'vodka': 'vodka',
-    'wódka': 'vodka',
     'wodka': 'vodka',
-    'limonka': 'lime',
+    'wódka': 'vodka',
     'liomka': 'lime',
-    'cytryna': 'lemon',
     'cytyna': 'lemon',
-    'cukier': 'sugar',
     'cukir': 'sugar',
-    'miÄ™ta': 'mint',
-    'mieta': 'mint',
     'minta': 'mint',
+    'mieta': 'mint',
     'ogurek': 'cucumber',
-    'ogórek': 'cucumber',
-    'bazylia': 'basil',
     'bazylka': 'basil',
     'kola': 'cola',
-    'tonik': 'tonic',
-    'rum': 'rum',
-    'tequila': 'tequila',
-    'tekila': 'tequila',
-    'koniak': 'cognac',
-    'brandy': 'cognac'
+    'tonik': 'tonic'
   };
   
   // Check if it's a known brand
@@ -984,297 +627,72 @@ function normalizeIngredient(ing) {
     }
   }
   
-  // Direct ingredient mapping - POPRAWIONE POLSKIE ZNAKI
+  // Direct ingredient mapping
   const ingredientMap = {
     'cytryna': 'lemon',
     'limonka': 'lime',
     'cukier': 'sugar',
-    'syrop cukrowy': 'sugar',
     'woda gazowana': 'soda water',
-    'miÄ™ta': 'mint',
-    'mieta': 'mint',
     'mięta': 'mint',
     'bazylia': 'basil',
     'mleko': 'cream',
     'śmietana': 'cream',
     'śmietanka': 'cream',
-    'smietana': 'cream',
-    'smietanka': 'cream',
     'miód': 'honey',
-    'miod': 'honey',
     'wermut': 'vermouth',
     'bitter': 'bitters',
     'angostura': 'bitters',
     'żurawina': 'cranberry',
-    'zurawina': 'cranberry',
-    'sok żurawinowy': 'cranberry',
-    'sok zurawinowy': 'cranberry',
     'espresso': 'espresso',
     'kawa': 'espresso',
     'prosecco': 'prosecco',
-    'szampan': 'champagne',
-    'pomarańcza': 'orange',
-    'pomarancza': 'orange',
-    'sok pomarańczowy': 'orange',
-    'sok pomaranczowy': 'orange',
-    'grejpfrut': 'grapefruit',
-    'sok grejpfrutowy': 'grapefruit',
-    'ananas': 'pineapple',
-    'sok ananasowy': 'pineapple',
-    'brzoskwinia': 'peach',
-    'pomidory': 'tomato juice',
-    'sok pomidorowy': 'tomato juice',
-    'piwo imbirowe': 'ginger beer',
-    'imbir': 'ginger',
-    'kokos': 'coconut',
-    'mleko kokosowe': 'coconut cream',
-    'kremówka kokosowa': 'coconut cream',
-    'kremowka kokosowa': 'coconut cream',
-    'woda': 'water',
-    'gorąca woda': 'hot water',
-    'goraca woda': 'hot water',
-    'lód': 'ice',
-    'lod': 'ice',
-    'kostki lodu': 'ice',
-    'crushed ice': 'crushed ice',
-    'lemonade': 'lemonade',
-    'lemonada': 'lemonade',
-    'cola': 'cola',
-    'tonik': 'tonic',
-    'sprite': 'sprite',
-    'energy drink': 'energy drink',
-    'napój energetyczny': 'energy drink',
-    'napoj energetyczny': 'energy drink',
-    'pepsi': 'cola',
-    'fanta': 'orange',
-    'mirinda': 'orange'
+    'szampan': 'prosecco'
   };
   
   return ingredientMap[lower] || lower;
 }
 
-// Helper function to check if user has an ingredient - POPRAWIONA
+// Helper function to check if user has an ingredient
 function hasIngredient(userIngredients, required) {
   const normalizedUser = userIngredients.map(ing => normalizeIngredient(ing));
-  
-  // Special cases - POPRAWIONE POLSKIE ZNAKI
-  if (required === 'cream') {
-    return normalizedUser.includes('cream') || 
-           normalizedUser.includes('baileys') || 
-           normalizedUser.includes('milk') ||
-           normalizedUser.includes('śmietana') ||
-           normalizedUser.includes('smietana') ||
-           normalizedUser.includes('śmietanka') ||
-           normalizedUser.includes('smietanka') ||
-           normalizedUser.includes('mleko');
-  }
-  
-  if (required === 'soda water') {
-    return normalizedUser.includes('soda water') || 
-           normalizedUser.includes('sparkling water') ||
-           normalizedUser.includes('woda gazowana');
-  }
-  
-  if (required === 'energy drink') {
-    return normalizedUser.includes('energy drink') || 
-           normalizedUser.includes('red bull') || 
-           normalizedUser.includes('monster') ||
-           normalizedUser.includes('tiger') ||
-           normalizedUser.includes('rockstar') ||
-           normalizedUser.includes('burn') ||
-           normalizedUser.includes('napój energetyczny') ||
-           normalizedUser.includes('napoj energetyczny');
-  }
-  
-  if (required === 'orange') {
-    return normalizedUser.includes('orange') || 
-           normalizedUser.includes('fanta') || 
-           normalizedUser.includes('mirinda') ||
-           normalizedUser.includes('pomarańcza') ||
-           normalizedUser.includes('pomarancza') ||
-           normalizedUser.includes('sok pomarańczowy') ||
-           normalizedUser.includes('sok pomaranczowy');
-  }
-  
-  if (required === 'ginger beer') {
-    return normalizedUser.includes('ginger beer') || 
-           normalizedUser.includes('canada dry') ||
-           normalizedUser.includes('piwo imbirowe') ||
-           normalizedUser.includes('bundaberg');
-  }
-  
-  if (required === 'whisky') {
-    return normalizedUser.includes('whisky') || 
-           normalizedUser.includes('whiskey') ||
-           normalizedUser.includes('wisky') ||
-           normalizedUser.includes('wiskey');
-  }
-  
-  if (required === 'lime') {
-    return normalizedUser.includes('lime') || 
-           normalizedUser.includes('limonka') ||
-           normalizedUser.includes('liomka');
-  }
-  
-  if (required === 'lemon') {
-    return normalizedUser.includes('lemon') || 
-           normalizedUser.includes('cytryna') ||
-           normalizedUser.includes('cytyna');
-  }
-  
-  if (required === 'sugar') {
-    return normalizedUser.includes('sugar') || 
-           normalizedUser.includes('cukier') ||
-           normalizedUser.includes('cukir') ||
-           normalizedUser.includes('syrop cukrowy');
-  }
-  
-  if (required === 'mint') {
-    return normalizedUser.includes('mint') || 
-           normalizedUser.includes('miÄ™ta') ||
-           normalizedUser.includes('mięta') ||
-           normalizedUser.includes('mieta') ||
-           normalizedUser.includes('minta');
-  }
-  
-  if (required === 'tonic') {
-    return normalizedUser.includes('tonic') || 
-           normalizedUser.includes('tonik');
-  }
-  
-  if (required === 'cola') {
-    return normalizedUser.includes('cola') || 
-           normalizedUser.includes('kola') ||
-           normalizedUser.includes('coca-cola') ||
-           normalizedUser.includes('coke') ||
-           normalizedUser.includes('pepsi');
-  }
-  
-  if (required === 'cranberry') {
-    return normalizedUser.includes('cranberry') || 
-           normalizedUser.includes('żurawina') ||
-           normalizedUser.includes('zurawina') ||
-           normalizedUser.includes('sok żurawinowy') ||
-           normalizedUser.includes('sok zurawinowy');
-  }
-  
-  if (required === 'grapefruit') {
-    return normalizedUser.includes('grapefruit') || 
-           normalizedUser.includes('grejpfrut') ||
-           normalizedUser.includes('sok grejpfrutowy');
-  }
-  
-  if (required === 'pineapple') {
-    return normalizedUser.includes('pineapple') || 
-           normalizedUser.includes('ananas') ||
-           normalizedUser.includes('sok ananasowy');
-  }
-  
-  if (required === 'tomato juice') {
-    return normalizedUser.includes('tomato juice') || 
-           normalizedUser.includes('pomidory') ||
-           normalizedUser.includes('sok pomidorowy');
-  }
-  
-  if (required === 'champagne') {
-    return normalizedUser.includes('champagne') || 
-           normalizedUser.includes('prosecco') ||
-           normalizedUser.includes('szampan');
-  }
-  
-  if (required === 'lemonade') {
-    return normalizedUser.includes('lemonade') || 
-           normalizedUser.includes('lemonada');
-  }
-  
-  if (required === 'sprite') {
-    return normalizedUser.includes('sprite') || 
-           normalizedUser.includes('7up') ||
-           normalizedUser.includes('lemon-lime soda');
-  }
-  
-  if (required === 'lemon vodka') {
-    return normalizedUser.includes('lemon vodka') || 
-           normalizedUser.includes('cytrynówka') ||
-           normalizedUser.includes('cytrynowka');
-  }
-  
-  if (required === 'cherry vodka') {
-    return normalizedUser.includes('cherry vodka') || 
-           normalizedUser.includes('wiśniówka') ||
-           normalizedUser.includes('wisniowka');
-  }
-  
-  if (required === 'honey liqueur') {
-    return normalizedUser.includes('honey liqueur') || 
-           normalizedUser.includes('krupnik') ||
-           normalizedUser.includes('miodówka') ||
-           normalizedUser.includes('miodowka') ||
-           normalizedUser.includes('honey vodka');
-  }
-  
-  if (required === 'herbal liqueur') {
-    return normalizedUser.includes('herbal liqueur') || 
-           normalizedUser.includes('żołądkowa') ||
-           normalizedUser.includes('zoladkowa') ||
-           normalizedUser.includes('żołądkowa gorzka') ||
-           normalizedUser.includes('zoladkowa gorzka') ||
-           normalizedUser.includes('jagermeister');
-  }
-  
-  if (required === 'moonshine') {
-    return normalizedUser.includes('moonshine') || 
-           normalizedUser.includes('bimber') ||
-           normalizedUser.includes('samogon');
-  }
-  
-  if (required === 'plum brandy') {
-    return normalizedUser.includes('plum brandy') || 
-           normalizedUser.includes('śliwowica') ||
-           normalizedUser.includes('sliwowica');
-  }
-  
-  if (required === 'fruit liqueur') {
-    return normalizedUser.includes('fruit liqueur') || 
-           normalizedUser.includes('nalewka') ||
-           normalizedUser.includes('nalewka babuni') ||
-           normalizedUser.includes('dereniówka') ||
-           normalizedUser.includes('pigwówka') ||
-           normalizedUser.includes('malinówka') ||
-           normalizedUser.includes('jeżynówka') ||
-           normalizedUser.includes('orzechówka');
-  }
-  
-  if (required === 'honey vodka') {
-    return normalizedUser.includes('honey vodka') || 
-           normalizedUser.includes('miodówka') ||
-           normalizedUser.includes('miodowka');
-  }
-  
-  if (required === 'apple juice') {
-    return normalizedUser.includes('apple juice') || 
-           normalizedUser.includes('sok jabłkowy') ||
-           normalizedUser.includes('sok jablkowy') ||
-           normalizedUser.includes('apple') ||
-           normalizedUser.includes('jabłko') ||
-           normalizedUser.includes('jablko');
-  }
-  
-  if (required === 'water') {
-    return normalizedUser.includes('water') || 
-           normalizedUser.includes('woda');
-  }
-  
-  return normalizedUser.includes(required);
+
+  const aliases = {
+    'lemon':       ['lemon', 'cytryna', 'sok z cytryny', 'sok cytrynowy'],
+    'lime':        ['lime', 'limonka', 'sok z limonki', 'sok limonkowy'],
+    'orange':      ['orange', 'pomarańcza', 'fanta', 'mirinda', 'sok pomarańczowy'],
+    'cream':       ['cream', 'baileys', 'milk', 'mleko', 'śmietana', 'śmietanka'],
+    'sugar':       ['sugar', 'cukier', 'syrop cukrowy', 'simple syrup'],
+    'soda water':  ['soda water', 'sparkling water', 'woda gazowana', 'woda sodowa'],
+    'ginger beer': ['ginger beer', 'canada dry', 'piwo imbirowe'],
+    'energy drink':['energy drink', 'red bull', 'redbull', 'monster', 'tiger', 'rockstar', 'burn'],
+    'triple sec':  ['triple sec', 'cointreau', 'grand marnier', 'orange liqueur'],
+    'vermouth':    ['vermouth', 'wermut', 'martini', 'cinzano'],
+    'whisky':      ['whisky', 'whiskey', 'bourbon'],
+    'rum':         ['rum', 'white rum', 'dark rum', 'biały rum', 'ciemny rum'],
+    'tonic':       ['tonic', 'tonik', 'tonic water', 'kinley', 'schweppes'],
+    'cola':        ['cola', 'kola', 'coca-cola', 'coke', 'pepsi'],
+    'espresso':    ['espresso', 'kawa', 'coffee'],
+    'cranberry':   ['cranberry', 'żurawina', 'sok żurawinowy'],
+    'tomato juice':['tomato juice', 'sok pomidorowy'],
+    'pineapple':   ['pineapple', 'ananas', 'sok ananasowy'],
+    'grapefruit':  ['grapefruit', 'grejpfrut', 'sok grejpfrutowy'],
+    'coconut cream':['coconut cream', 'krem kokosowy', 'mleko kokosowe'],
+    'mint':        ['mint', 'mięta'],
+    'basil':       ['basil', 'bazylia'],
+    'honey':       ['honey', 'miód'],
+    'bitters':     ['bitters', 'bitter', 'angostura'],
+  };
+
+  const requiredAliases = aliases[required] || [required];
+  return normalizedUser.some(userIng =>
+    requiredAliases.some(alias => userIng.includes(alias) || alias.includes(userIng))
+  );
 }
 
-// Check what cocktails can be made - POPRAWIONA LOGIKA
+// Check what cocktails can be made
 function checkCocktails(userIngredients) {
   const canMake = [];
   const almostCanMake = [];
-  const couldMakeMissing2 = []; // Nowa kategoria dla koktajli z 2 brakującymi składnikami
-  
-  console.log('🔍 Checking cocktails with ingredients:', userIngredients.map(ing => normalizeIngredient(ing)));
   
   for (const [cocktailName, recipe] of Object.entries(COCKTAIL_RECIPES)) {
     const missingRequired = [];
@@ -1286,8 +704,6 @@ function checkCocktails(userIngredients) {
       }
     }
     
-    console.log(`🍸 ${cocktailName}: missing ${missingRequired.length} ingredients:`, missingRequired);
-    
     if (missingRequired.length === 0) {
       canMake.push(cocktailName);
     } else if (missingRequired.length === 1) {
@@ -1295,23 +711,15 @@ function checkCocktails(userIngredients) {
         cocktail: cocktailName,
         missing: missingRequired[0]
       });
-    } else if (missingRequired.length === 2) {
-      // Dodajemy koktajle z 2 brakującymi składnikami do rozważenia w sugestiach zakupów
-      couldMakeMissing2.push({
-        cocktail: cocktailName,
-        missing: missingRequired
-      });
     }
-    // If missing 3+ ingredients, don't include
+    // If missing 2+ ingredients, don't include
   }
   
-  console.log(`📊 Results: Can make ${canMake.length}, Almost ${almostCanMake.length}, Missing 2: ${couldMakeMissing2.length}`);
-  
-  return { canMake, almostCanMake, couldMakeMissing2 };
+  return { canMake, almostCanMake };
 }
 
-// Generate smart shopping suggestions - POPRAWIONA
-function generateShoppingSuggestions(userIngredients, almostCanMake, couldMakeMissing2) {
+// Generate smart shopping suggestions
+function generateShoppingSuggestions(userIngredients, almostCanMake) {
   const suggestions = [];
   const ingredientCount = {};
   
@@ -1321,56 +729,30 @@ function generateShoppingSuggestions(userIngredients, almostCanMake, couldMakeMi
     if (!ingredientCount[ing]) {
       ingredientCount[ing] = {
         count: 0,
-        cocktails: [],
-        priority: 'high' // Koktajle z 1 brakującym składnikiem mają wysoką wagę
+        cocktails: []
       };
     }
     ingredientCount[ing].count++;
     ingredientCount[ing].cocktails.push(item.cocktail);
   }
   
-  // Dodajemy składniki z koktajli gdzie brakuje 2 składników, ale z niższą wagą
-  for (const item of couldMakeMissing2) {
-    for (const ing of item.missing) {
-      if (!ingredientCount[ing]) {
-        ingredientCount[ing] = {
-          count: 0,
-          cocktails: [],
-          priority: 'medium' // Niższa waga dla składników z koktajli z 2 brakującymi
-        };
-      }
-      ingredientCount[ing].count += 0.5; // Połowa wagi dla składników z koktajli z 2 brakującymi
-      if (!ingredientCount[ing].cocktails.includes(item.cocktail)) {
-        ingredientCount[ing].cocktails.push(item.cocktail);
-      }
-    }
-  }
-  
-  // Sort by unlock count and priority
+  // Sort by unlock count
   const sorted = Object.entries(ingredientCount)
-    .sort((a, b) => {
-      // Najpierw sortuj po priorytecie (high > medium)
-      if (a[1].priority !== b[1].priority) {
-        return a[1].priority === 'high' ? -1 : 1;
-      }
-      // Potem po liczbie odblokowywanych koktajli
-      return b[1].count - a[1].count;
-    })
-    .slice(0, 3); // Max 3 suggestions (zwiększone z 2)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 2); // Max 2 suggestions
   
   for (const [ingredient, data] of sorted) {
     suggestions.push({
       ingredient,
-      unlocksCount: Math.floor(data.count),
-      cocktails: data.cocktails,
-      priority: data.priority
+      unlocksCount: data.count,
+      cocktails: data.cocktails
     });
   }
   
   return suggestions;
 }
 
-// Helper function to translate ingredients - POPRAWIONE POLSKIE ZNAKI
+// Helper function to translate ingredients
 function translateIngredient(ingredient, language) {
   const translations = {
     'lemon': 'cytryna',
@@ -1389,52 +771,7 @@ function translateIngredient(ingredient, language) {
     'ginger beer': 'piwo imbirowe',
     'triple sec': 'triple sec',
     'espresso': 'espresso',
-    'prosecco': 'prosecco',
-    'champagne': 'szampan',
-    'orange': 'pomarańcza',
-    'grapefruit': 'grejpfrut',
-    'pineapple': 'ananas',
-    'tomato juice': 'sok pomidorowy',
-    'coconut cream': 'mleko kokosowe',
-    'peach': 'brzoskwinia',
-    'energy drink': 'napój energetyczny',
-    'cola': 'cola',
-    'sprite': 'sprite',
-    'lemonade': 'lemonada',
-    'hot water': 'gorąca woda',
-    'coffee': 'kawa',
-    'whisky': 'whisky',
-    'gin': 'gin',
-    'vodka': 'wódka',
-    'rum': 'rum',
-    'tequila': 'tequila',
-    'cognac': 'koniak',
-    'kahlua': 'kahlua',
-    'baileys': 'baileys',
-    'campari': 'campari',
-    'aperol': 'aperol',
-    'amaretto': 'amaretto',
-    'lemon vodka': 'cytrynówka',
-    'cherry vodka': 'wiśniówka',
-    'honey liqueur': 'krupnik',
-    'honey vodka': 'miodówka',
-    'herbal liqueur': 'żołądkowa',
-    'moonshine': 'bimber',
-    'plum brandy': 'śliwowica',
-    'fruit liqueur': 'nalewka',
-    'apple juice': 'sok jabłkowy',
-    'water': 'woda',
-    'whisky': 'whisky',
-    'gin': 'gin',
-    'vodka': 'wódka',
-    'rum': 'rum',
-    'tequila': 'tequila',
-    'cognac': 'koniak',
-    'kahlua': 'kahlua',
-    'baileys': 'baileys',
-    'campari': 'campari',
-    'aperol': 'aperol',
-    'amaretto': 'amaretto'
+    'prosecco': 'prosecco'
   };
   
   if (language === 'pl') {
@@ -1447,93 +784,6 @@ function translateIngredient(ingredient, language) {
   );
   
   return reverseTranslations[ingredient] || ingredient;
-}
-
-// Helper function to get Polish cocktail names
-function getPolishCocktailName(englishName) {
-  const cocktailTranslations = {
-    'Gin & Tonic': 'Gin z Tonikiem',
-    'Gin Lemonade': 'Gin z Lemonadą',
-    'Whiskey Coke': 'Whisky z Colą',
-    'Whiskey Sour': 'Whisky Sour',
-    'Old Fashioned': 'Old Fashioned',
-    'Manhattan': 'Manhattan',
-    'Vodka Tonic': 'Wódka z Tonikiem',
-    'Vodka Red Bull': 'Wódka z Red Bullem',
-    'Moscow Mule': 'Moscow Mule',
-    'White Russian': 'Biały Rosjanin',
-    'Black Russian': 'Czarny Rosjanin',
-    'Bloody Mary': 'Krwawa Mary',
-    'Screwdriver': 'Śrubokręt',
-    'Rum & Coke': 'Rum z Colą',
-    'Cuba Libre': 'Cuba Libre',
-    'Mojito': 'Mojito',
-    'Daiquiri': 'Daiquiri',
-    'Margarita': 'Margarita',
-    'Tequila Sunrise': 'Tequila Sunrise',
-    'Cosmopolitan': 'Cosmopolitan',
-    'Espresso Martini': 'Espresso Martini',
-    'Negroni': 'Negroni',
-    'Aperol Spritz': 'Aperol Spritz',
-    'Mimosa': 'Mimosa',
-    'Bellini': 'Bellini',
-    'French 75': 'French 75',
-    'Tom Collins': 'Tom Collins',
-    'Gin Fizz': 'Gin Fizz',
-    'Piña Colada': 'Piña Colada',
-    'Mai Tai': 'Mai Tai',
-    'Long Island Iced Tea': 'Long Island Iced Tea',
-    'Irish Coffee': 'Irlandzka Kawa',
-    'Baileys Coffee': 'Kawa z Baileys',
-    'Hot Toddy': 'Gorący Toddy',
-    'Whiskey Honey': 'Whisky z Miodem',
-    'Gin Basil Smash': 'Gin Basil Smash',
-    'Amaretto Sour': 'Amaretto Sour',
-    'Brandy Alexander': 'Brandy Alexander',
-    'Sidecar': 'Sidecar',
-    'B-52': 'B-52',
-    'Mudslide': 'Mudslide',
-    'Sex on the Beach': 'Sex on the Beach',
-    'Blue Lagoon': 'Błękitna Laguna',
-    'Fuzzy Navel': 'Fuzzy Navel',
-    'Sea Breeze': 'Morska Bryza',
-    'Bay Breeze': 'Zatokowa Bryza',
-    'Cape Codder': 'Cape Codder',
-    'Greyhound': 'Chart',
-    'Salty Dog': 'Słony Pies',
-    'Kamikaze': 'Kamikaze',
-    'Jager Bomb': 'Jager Bomb',
-    'Dark & Stormy': 'Dark & Stormy',
-    'Paloma': 'Paloma',
-    'Mexican Mule': 'Meksykański Muł',
-    'Caipirinha': 'Caipirinha',
-    'Caipiroska': 'Caipiroska',
-    'Cytrynówka Shot': 'Shot Cytrynówki',
-    'Cytrynówka z Tonikiem': 'Cytrynówka z Tonikiem',
-    'Wiśniówka Shot': 'Shot Wiśniówki',
-    'Krupnik z Kawą': 'Krupnik z Kawą',
-    'Krupnik Hot': 'Gorący Krupnik',
-    'Żołądkowa z Cytryną': 'Żołądkowa z Cytryną',
-    'Bimber Shot': 'Shot Bimbru',
-    'Bimber z Miodem': 'Bimber z Miodem',
-    'Śliwowica Traditionalna': 'Tradycyjna Śliwowica',
-    'Miodówka z Cytryną': 'Miodówka z Cytryną',
-    'Nalewka Babuni': 'Nalewka Babuni',
-    'Żubrówka Apple': 'Żubrówka z Jabłkiem',
-    'Vodka Shot': 'Shot Wódki',
-    'Whisky Neat': 'Whisky Czysta',
-    'Rum Shot': 'Shot Rumu',
-    'Gin Neat': 'Gin Czysty',
-    'Tequila Shot': 'Shot Tequili',
-    'Cognac Neat': 'Koniak Czysty',
-    'Vodka Water': 'Wódka z Wodą',
-    'Whisky Water': 'Whisky z Wodą',
-    'Rum Water': 'Rum z Wodą',
-    'Vodka Lime': 'Wódka z Limonką',
-    'Whisky Lemon': 'Whisky z Cytryną',
-  };
-  
-  return cocktailTranslations[englishName] || englishName;
 }
 
 // Helper function to check daily limits
@@ -1559,7 +809,7 @@ const checkDailyLimit = async (firebaseUid, limitType = 'mybar') => {
   }
 };
 
-// Helper function to update user stats
+// Helper function to update user stats - ZWIĘKSZA STATYSTYKI TYLKO RAZ
 const updateUserStats = async (firebaseUid) => {
   try {
     if (!firebaseUid) {
@@ -1567,6 +817,7 @@ const updateUserStats = async (firebaseUid) => {
       return;
     }
 
+    // Zwiększ statystyki TYLKO RAZ
     const result = await User.findOneAndUpdate(
       { firebaseUid },
       { 
@@ -1589,7 +840,7 @@ const updateUserStats = async (firebaseUid) => {
   }
 };
 
-// Main route handler - POPRAWIONY
+// Main route handler
 router.post('/', async (req, res) => {
   try {
     const { ingredients, language = 'en', firebaseUid } = req.body;
@@ -1610,10 +861,10 @@ router.post('/', async (req, res) => {
     }
     
     // First, use our logic to check what's possible
-    const { canMake, almostCanMake, couldMakeMissing2 } = checkCocktails(ingredients);
-    const shoppingSuggestions = generateShoppingSuggestions(ingredients, almostCanMake, couldMakeMissing2);
+    const { canMake, almostCanMake } = checkCocktails(ingredients);
+    const shoppingSuggestions = generateShoppingSuggestions(ingredients, almostCanMake);
     
-    console.log(`📊 Logic check - Can make: ${canMake.length}, Almost: ${almostCanMake.length}, Missing 2: ${couldMakeMissing2.length}`);
+    console.log(`📊 Logic check - Can make: ${canMake.length}, Almost: ${almostCanMake.length}`);
     
     // Build context for AI
     const contextInfo = {
@@ -1636,26 +887,20 @@ KRYTYCZNE ZASADY:
 3. NIE pokazuj koktajli gdzie brakuje 2+ składników
 4. Sugestie zakupów - TYLKO składniki które odblokują koktajle z obecnymi składnikami
 5. Sprawdź DOKŁADNIE każdy koktajl przed dodaniem
-6. Pokaż WIĘCEJ opcji koktajli jeśli to możliwe
 
 Składniki które MAM:
 ${ingredients.join(', ')}
 
-ROZPOZNAWAJ MARKI I SKŁADNIKI:
+ROZPOZNAWAJ MARKI:
 - Bombay = gin
 - Jack Daniels = whisky
 - Kinley = tonic
 - Baileys = śmietanka/irish cream
 - Kahlua = likier kawowy
-- whisky = whiskey (to samo)
-- cytryna = lemon juice
-- limonka = lime juice
-- cukier = simple syrup
-- miÄ™ta = mint
 - itd.
 
 Podaj WSZYSTKIE koktajle które mogę zrobić.
-Maksymalnie 3 sugestie zakupów.
+Maksymalnie 2 sugestie zakupów.
 Wszystkie teksty po polsku.
 
 RETURN ONLY VALID JSON!`
@@ -1672,41 +917,34 @@ CRITICAL RULES:
 3. DON'T show cocktails missing 2+ ingredients
 4. Shopping suggestions - ONLY ingredients that unlock cocktails with current ingredients
 5. Check THOROUGHLY each cocktail before adding
-6. Show MORE cocktail options when possible
 
 Ingredients I HAVE:
 ${ingredients.join(', ')}
 
-RECOGNIZE BRANDS AND INGREDIENTS:
+RECOGNIZE BRANDS:
 - Bombay = gin
 - Jack Daniels = whiskey
 - Kinley = tonic
 - Baileys = cream/irish cream
 - Kahlua = coffee liqueur
-- whisky = whiskey (same thing)
-- cytryna = lemon juice
-- limonka = lime juice
-- cukier = simple syrup
-- miÄ™ta = mint
 - etc.
 
 List ALL cocktails I can make.
-Maximum 3 shopping suggestions.
+Maximum 2 shopping suggestions.
 All text in English.
 
 RETURN ONLY VALID JSON!`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+      max_tokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS) || 3000,
+      system: MYBAR_SYSTEM_PROMPT,
       messages: [
-        { role: "system", content: MYBAR_SYSTEM_PROMPT },
         { role: "user", content: userPrompt }
       ],
-      temperature: 0.3,
-      max_tokens: 4000, // Zwiększone dla większej liczby koktajli
     });
 
-    const aiResponse = response.choices[0].message.content;
+    const aiResponse = response.content[0].text;
     console.log('🤖 Raw MyBar Response:', aiResponse.substring(0, 200) + '...');
     
     // Clean response
@@ -1727,25 +965,9 @@ RETURN ONLY VALID JSON!`;
       suggestions = JSON.parse(cleanedResponse);
       console.log('✅ Successfully parsed MyBar JSON');
       
-      // Validate AI response against our logic
+      // Log what AI returned vs our logic check (for debugging)
       if (suggestions.cocktails) {
-        // Double-check each cocktail - POPRAWIONA WALIDACJA
-        suggestions.cocktails = suggestions.cocktails.filter(cocktail => {
-          const cocktailName = cocktail.nameEn || cocktail.name;
-          const isValid = canMake.includes(cocktailName) || 
-                         canMake.some(name => {
-                           const normalizedCocktail = cocktailName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                           const normalizedName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                           return normalizedCocktail.includes(normalizedName) || 
-                                  normalizedName.includes(normalizedCocktail);
-                         });
-          
-          if (!isValid) {
-            console.log(`❌ Removing invalid cocktail: ${cocktailName}`);
-          }
-          
-          return isValid;
-        });
+        console.log(`🤖 AI found ${suggestions.cocktails.length} cocktails, local logic found: ${canMake.join(', ') || 'none'}`);
       }
       
       // Process and ensure all fields
@@ -1768,42 +990,22 @@ RETURN ONLY VALID JSON!`;
     } catch (e) {
       console.error('MyBar parse error, using fallback:', e);
       
-      // Build fallback cocktails from our logic - POPRAWIONY FALLBACK
+      // Build fallback cocktails from our logic
       const fallbackCocktails = [];
       
       for (const cocktailName of canMake) {
         const recipe = COCKTAIL_RECIPES[cocktailName];
         if (!recipe) continue;
         
-        // Podstawowe ilości dla różnych typów składników
-        const getAmount = (ingredient) => {
-          if (['whisky', 'gin', 'vodka', 'rum', 'tequila', 'cognac'].includes(ingredient)) {
-            return '50';
-          }
-          if (['triple sec', 'kahlua', 'amaretto', 'vermouth'].includes(ingredient)) {
-            return '25';
-          }
-          if (['lemon', 'lime'].includes(ingredient)) {
-            return '25';
-          }
-          if (['sugar', 'honey'].includes(ingredient)) {
-            return '15';
-          }
-          if (['tonic', 'soda water', 'ginger beer', 'cola'].includes(ingredient)) {
-            return '100';
-          }
-          return '30';
-        };
-        
         fallbackCocktails.push({
-          name: requestLanguage === 'pl' ? getPolishCocktailName(cocktailName) : cocktailName,
+          name: cocktailName,
           nameEn: cocktailName,
           available: true,
           description: requestLanguage === 'pl' ? 'Klasyczny koktajl' : 'Classic cocktail',
           category: recipe.category,
           ingredients: recipe.required.map(ing => ({
             name: requestLanguage === 'pl' ? translateIngredient(ing, 'pl') : ing,
-            amount: getAmount(ing),
+            amount: '50',
             unit: 'ml'
           })),
           instructions: [
@@ -1855,7 +1057,7 @@ RETURN ONLY VALID JSON!`;
       shoppingList: responseData.shoppingList.length
     });
     
-    // Update user stats
+    // Update user stats - zwiększa statystyki TYLKO RAZ
     if (firebaseUid) {
       await updateUserStats(firebaseUid);
     }
