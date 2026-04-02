@@ -96,6 +96,8 @@ const saveScanToHistory = async (firebaseUid, bottleInfo, imageData, aiResponse)
 
 const SCANNER_SYSTEM_PROMPT = `You are a master sommelier and head bartender with 25 years of experience. You are analyzing a photo of an alcohol bottle taken by a smartphone user.
 
+RESPOND WITH PURE JSON ONLY. No markdown, no code fences, no explanation — just the JSON object.
+
 YOUR TASK: Read the label carefully and identify the product with maximum precision.
 
 READING THE LABEL:
@@ -186,8 +188,8 @@ router.post('/', async (req, res) => {
     }
     
     const userPrompt = language === 'pl'
-      ? `Przeanalizuj zdjęcie tej butelki alkoholu. Odczytaj etykietę tak dokładnie jak to możliwe. CAŁY tekst w odpowiedzi musi być po POLSKU. Użyj polskich typów trunku (whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny). Opisz smak, aromat i charakter produktu. Zaproponuj konkretne koktajle pasujące do tego trunku. Jeśli etykieta jest nieczytelna lub zasłonięta, odzwierciedl to w polu confidence.`
-      : `Analyze this photo of an alcohol bottle. Read the label as carefully as possible. ALL text in your response must be in ENGLISH. Use English spirit types (whiskey, vodka, gin, rum, tequila, cognac, liqueur, brandy, wine, champagne, beer, other). Describe the flavor, aroma and character of this specific product. Suggest cocktails that genuinely suit this spirit. If the label is obscured or unreadable, reflect that in the confidence score.`;
+      ? `Przeanalizuj zdjęcie tej butelki alkoholu. Odczytaj etykietę dokładnie. WAŻNE: CAŁY tekst odpowiedzi po POLSKU. Typ trunku z listy: whisky, wódka, gin, rum, tequila, koniak, likier, brandy, wino, szampan, piwo, inny. Opisz smak, aromat, charakter tego konkretnego produktu. Zaproponuj 3 koktajle pasujące do tego trunku. Jeśli etykieta nieczytelna — odzwierciedl w polu confidence. Zwróć wyłącznie czysty JSON.`
+      : `Analyze this photo of an alcohol bottle. Read the label carefully. ALL text in your response must be in ENGLISH. Spirit type must be one of: whiskey, vodka, gin, rum, tequila, cognac, liqueur, brandy, wine, champagne, beer, other. Describe the flavor, aroma and character of THIS specific product. Suggest 3 cocktails that suit this spirit. If the label is obscured, reflect that in confidence. Return pure JSON only.`;
 
     console.log('🤖 Calling Claude Vision API...');
 

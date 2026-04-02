@@ -4,20 +4,18 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years of experience. Create ONLY authentic, complete recipes according to IBA standards and classic cocktail books like "The Savoy Cocktail Book" by Harry Craddock (1930).
+const RECIPE_SYSTEM_PROMPT = `You are a world-class head bartender with 20 years of experience. Create ONLY authentic, complete cocktail recipes following IBA standards and "The Savoy Cocktail Book" by Harry Craddock (1930).
 
-Reference for classic recipes: https://drinki.pl/drinki.html
+RESPOND WITH PURE JSON ONLY. No markdown, no code fences, no explanation — just the JSON object.
 
 ABSOLUTE RULES:
-
 1. NEVER skip key ingredients (especially citrus juices!)
-2. ALWAYS provide ALL ingredients needed for the cocktail
-3. Instructions must be COMPLETE - don't cut off sentences
-4. ALL text in the requested language (pl/en) except 'method' field
-5. NEVER include ice in ingredients list - ice is only mentioned in instructions
+2. ALWAYS provide ALL ingredients with exact ml amounts
+3. Instructions must be COMPLETE sentences — never cut off
+4. ALL text in requested language (pl/en) EXCEPT the 'method' field (always English: shaken/stirred/built)
+5. NEVER include ice in ingredients — mention it only in instructions
 6. Match instructions to method: shaken = shaker, stirred = mixing glass, built = serving glass
-7. Use classic recipes from The Savoy Cocktail Book and drinki.pl for historical accuracy
-8. GLASSWARE IS CRITICAL - Each cocktail MUST be served in its traditional, correct glass type
+7. GLASSWARE IS CRITICAL — each cocktail MUST use its traditional correct glass
 
 GLASSWARE RULES (NEVER DEVIATE):
 
@@ -137,7 +135,7 @@ For POLISH (pl):
 - top/top up = "do pełna"
 - crème de mûre = "likier jeżynowy"
 - cherry brandy = "likier wiśniowy"
-- garnish = "garnisz" (CRITICAL: NEVER use "garnitur" — garnitur means a suit/outfit, not a garnish!)
+- garnish = "garnisz" — ⚠️ CRITICAL: ABSOLUTELY NEVER write "garnitur" — garnitur is a SUIT OF CLOTHES, not a garnish! The correct word is always "garnisz".
 - orange peel = "skórka pomarańczy jako garnisz"
 - lime wedge = "ćwiartka limonki jako garnisz"
 - mint sprig = "gałązka mięty jako garnisz"
@@ -185,7 +183,7 @@ JSON FORMAT:
     "[COMPLETE sentence matching the method - step 4]",
     "[COMPLETE sentence matching the method - step 5]"
   ],
-  "garnish": "[garnish in request language - for Polish ALWAYS use 'garnisz', NEVER 'garnitur']",
+  "garnish": "[garnish — in Polish ALWAYS 'garnisz', ABSOLUTELY NEVER 'garnitur' (garnitur = suit!)]",
   "ice": "[ice type in request language - NOT in ingredients]",
   "abv": [estimated ABV of the finished drink as a number, e.g. 18],
   "flavor": "[2-3 flavor keywords in request language, e.g. 'cytrusowy, orzeźwiający, lekko słodki']",
@@ -219,50 +217,14 @@ module.exports = async (req, res) => {
     let userPrompt;
     
     if (requestLanguage === 'pl') {
-      userPrompt = `Create COMPLETE recipe for "${finalCocktailName}" cocktail.
-
-CRITICAL:
-- ALL text in POLISH except 'method' field
-- ALL ingredients with Polish names (świeżo wyciśnięty sok z limonki, NOT fresh lime juice)
-- Units in Polish: leaves = listków, tsp = łyżeczki, piece = sztuka
-- Glass types in Polish (szklanka highball, NOT highball glass) - USE CORRECT TRADITIONAL GLASS
-- Instructions in Polish
-- History in Polish
-- NEVER include ice in ingredients - only in instructions
-- For soda/cola use "do pełna" NOT "0 ml"
-- SOUR cocktails MUST use "szklanka rocks"
-- HUGO MUST use "kieliszek do wina"
-- Follow GLASSWARE RULES strictly
-- Match instructions to method:
-  * If method is "shaken": use shaker in instructions
-  * If method is "stirred": use szklanica barmańska in instructions
-  * If method is "built": build in serving glass
-
-RETURN PURE JSON!`;
+      userPrompt = `Stwórz kompletny przepis na koktajl "${finalCocktailName}". Cały tekst po polsku (poza polem 'method'). Zwróć wyłącznie czysty JSON — bez żadnych znaczników markdown.`;
     } else {
-      userPrompt = `Create COMPLETE recipe for "${finalCocktailName}" cocktail.
-
-CRITICAL:
-- ALL text in ENGLISH
-- Standard bartending terminology
-- Complete ingredient list with measurements
-- USE CORRECT TRADITIONAL GLASS based on GLASSWARE RULES
-- NEVER include ice in ingredients - only in instructions
-- For soda/cola use "top up" NOT "0 ml"
-- SOUR cocktails MUST use "rocks glass"
-- HUGO MUST use "wine glass"
-- Follow GLASSWARE RULES strictly
-- Match instructions to method:
-  * If method is "shaken": use shaker in instructions
-  * If method is "stirred": use mixing glass in instructions
-  * If method is "built": build in serving glass
-
-RETURN PURE JSON!`;
+      userPrompt = `Create a complete recipe for the "${finalCocktailName}" cocktail. All text in English. Return pure JSON only — no markdown, no code fences.`;
     }
 
     const completion = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 1500,
       system: RECIPE_SYSTEM_PROMPT,
       messages: [
         { role: "user", content: userPrompt }

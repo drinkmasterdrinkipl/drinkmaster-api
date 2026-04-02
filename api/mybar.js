@@ -299,6 +299,8 @@ const COCKTAIL_RECIPES = {
 
 const MYBAR_SYSTEM_PROMPT = `You are an expert head bartender helping a user discover what cocktails they can make from ingredients they have at home.
 
+RESPOND WITH PURE JSON ONLY. No markdown, no code fences, no explanation — just the JSON object.
+
 YOUR JOB:
 1. Identify ALL cocktails the user can make RIGHT NOW with their exact ingredients
 2. Identify cocktails they're ONE ingredient away from making
@@ -807,64 +809,20 @@ router.post('/', async (req, res) => {
     const userPrompt = requestLanguage === 'pl'
       ? `Mam te składniki: ${ingredients.join(', ')}
 
-KONTEKST (użyj tej wiedzy):
-- Mogę zrobić: ${contextInfo.canMake || 'nic'}
-- Prawie mogę (brakuje 1): ${contextInfo.almostInfo || 'nic'}
-- Sugestie zakupów: ${contextInfo.shopping || 'brak'}
+Pre-analiza (uwzględnij to):
+- Wstępnie mogę zrobić: ${contextInfo.canMake || 'brak'}
+- Prawie mogę (1 brakuje): ${contextInfo.almostInfo || 'brak'}
+- Sugerowane zakupy: ${contextInfo.shopping || 'brak'}
 
-KRYTYCZNE ZASADY:
-1. Pokazuj TYLKO koktajle które NAPRAWDĘ można zrobić (mam WSZYSTKIE składniki)
-2. W sekcji "prawie możliwe" tylko gdy brakuje JEDNEGO składnika
-3. NIE pokazuj koktajli gdzie brakuje 2+ składników
-4. Sugestie zakupów - TYLKO składniki które odblokują koktajle z obecnymi składnikami
-5. Sprawdź DOKŁADNIE każdy koktajl przed dodaniem
-
-Składniki które MAM:
-${ingredients.join(', ')}
-
-ROZPOZNAWAJ MARKI:
-- Bombay = gin
-- Jack Daniels = whisky
-- Kinley = tonic
-- Baileys = śmietanka/irish cream
-- Kahlua = likier kawowy
-- itd.
-
-Podaj WSZYSTKIE koktajle które mogę zrobić.
-Maksymalnie 2 sugestie zakupów.
-Wszystkie teksty po polsku.
-
-RETURN ONLY VALID JSON!`
+Sprawdź dokładnie każdy koktajl. Wszystkie teksty po polsku. Zwróć tylko czysty JSON bez markdown.`
       : `I have these ingredients: ${ingredients.join(', ')}
 
-CONTEXT (use this knowledge):
-- Can make: ${contextInfo.canMake || 'nothing'}
-- Almost can make (missing 1): ${contextInfo.almostInfo || 'nothing'}
-- Shopping suggestions: ${contextInfo.shopping || 'none'}
+Pre-analysis (factor this in):
+- Preliminary can make: ${contextInfo.canMake || 'none'}
+- Almost (missing 1): ${contextInfo.almostInfo || 'none'}
+- Shopping hints: ${contextInfo.shopping || 'none'}
 
-CRITICAL RULES:
-1. Show ONLY cocktails I can ACTUALLY make (have ALL ingredients)
-2. In "almost possible" section only when missing ONE ingredient
-3. DON'T show cocktails missing 2+ ingredients
-4. Shopping suggestions - ONLY ingredients that unlock cocktails with current ingredients
-5. Check THOROUGHLY each cocktail before adding
-
-Ingredients I HAVE:
-${ingredients.join(', ')}
-
-RECOGNIZE BRANDS:
-- Bombay = gin
-- Jack Daniels = whiskey
-- Kinley = tonic
-- Baileys = cream/irish cream
-- Kahlua = coffee liqueur
-- etc.
-
-List ALL cocktails I can make.
-Maximum 2 shopping suggestions.
-All text in English.
-
-RETURN ONLY VALID JSON!`;
+Verify each cocktail thoroughly. All text in English. Return pure JSON only, no markdown.`;
 
     const response = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
