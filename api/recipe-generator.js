@@ -132,6 +132,7 @@ For POLISH (pl):
 - sugar cube = "kostka cukru"
 - sugar = "cukier"
 - fresh mint = "świeża mięta"
+- fresh espresso = "świeże espresso" (NEUTER — NEVER "świeża espresso"!)
 - top/top up = "do pełna"
 - crème de mûre = "likier jeżynowy"
 - cherry brandy = "likier wiśniowy"
@@ -497,6 +498,13 @@ module.exports = async (req, res) => {
       recipe.category = recipe.category || "classic";
       recipe.method = recipe.method || "stirred";
       recipe.ice = recipe.ice || (requestLanguage === 'pl' ? "kostki" : "cubed");
+
+      // Cocktails served "up" (shaken/stirred then strained into glass) have NO ice in the glass
+      const servedUpGlasses = ['martini', 'coupe', 'nick & nora', 'flute'];
+      const isServedUp = recipe.glassType && servedUpGlasses.some(g => recipe.glassType.toLowerCase().includes(g));
+      if (isServedUp && recipe.method !== 'built') {
+        recipe.ice = requestLanguage === 'pl' ? "brak" : "none";
+      }
       
       // Ensure instructions are complete
       if (recipe.instructions && recipe.instructions.length > 0) {
