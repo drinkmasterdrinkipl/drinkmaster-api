@@ -137,6 +137,10 @@ For POLISH (pl):
 - top/top up = "do pełna"
 - crème de mûre = "likier jeżynowy"
 - cherry brandy = "likier wiśniowy"
+- garnish = "garnisz" (CRITICAL: NEVER use "garnitur" — garnitur means a suit/outfit, not a garnish!)
+- orange peel = "skórka pomarańczy jako garnisz"
+- lime wedge = "ćwiartka limonki jako garnisz"
+- mint sprig = "gałązka mięty jako garnisz"
 
 Units in Polish:
 - ml = ml
@@ -181,7 +185,7 @@ JSON FORMAT:
     "[COMPLETE sentence matching the method - step 4]",
     "[COMPLETE sentence matching the method - step 5]"
   ],
-  "garnish": "[garnish in request language]",
+  "garnish": "[garnish in request language - for Polish ALWAYS use 'garnisz', NEVER 'garnitur']",
   "ice": "[ice type in request language - NOT in ingredients]",
   "abv": [estimated ABV of the finished drink as a number, e.g. 18],
   "flavor": "[2-3 flavor keywords in request language, e.g. 'cytrusowy, orzeźwiający, lekko słodki']",

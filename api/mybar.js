@@ -371,7 +371,7 @@ RETURN ONLY VALID JSON:
       "glassType": "correct glass in requested language",
       "method": "shaken|stirred|built",
       "ice": "cubed|crushed|none",
-      "garnish": "garnish description",
+      "garnish": "garnish - for Polish use 'garnisz', NEVER 'garnitur' (= suit of clothes!)",
       "history": "1-2 sentences of real history"
     }
   ],
